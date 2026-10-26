@@ -22,6 +22,8 @@ import sys
 import threading
 import time
 
+from utils import log_suppressed_error
+
 ERROR_ALREADY_EXISTS = 183
 EVENT_MODIFY_STATE = 0x0002
 WAIT_OBJECT_0 = 0x00000000
@@ -54,7 +56,8 @@ class SingleInstance:
                 # 顺便把「叫醒」用的信号也建好，第二个程序马上就能叫到我们
                 self._event = k32.CreateEventW(None, False, False, self._event_name)
             return first
-        except Exception:
+        except Exception as exc:
+            log_suppressed_error("创建单实例互斥量失败，按可继续启动处理", exc)
             return True          # 判断不了就照常启动，别把程序卡住
 
     def wake_existing(self):
@@ -63,7 +66,8 @@ class SingleInstance:
             return False
         try:
             k32 = ctypes.windll.kernel32
-        except Exception:
+        except Exception as exc:
+            log_suppressed_error("获取单实例唤醒事件失败", exc)
             return False
         for _ in range(15):
             h = k32.OpenEventW(EVENT_MODIFY_STATE, False, self._event_name)
@@ -89,12 +93,14 @@ class SingleInstance:
             while not self._stop:
                 try:
                     rc = k32.WaitForSingleObject(self._event, 500)
-                except Exception:
+                except Exception as exc:
+                    log_suppressed_error("等待单实例唤醒事件失败", exc)
                     return
                 if rc == WAIT_OBJECT_0:
                     try:
                         callback()
-                    except Exception:
+                    except Exception as exc:
+                        log_suppressed_error("执行单实例唤醒回调失败", exc)
                         pass
 
         self._thread = threading.Thread(target=_wait, daemon=True)

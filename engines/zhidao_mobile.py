@@ -12,10 +12,10 @@
 5. 没结果时页面给「未找到相关问题」（.new-noresult），属于正常情况，不当报错。
 """
 import time
-import random
 from urllib.parse import quote
 
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class ZhidaoMobileEngine(BaseEngine):
@@ -23,6 +23,14 @@ class ZhidaoMobileEngine(BaseEngine):
     SOURCE_LABEL = '知道手机版'
     SEARCH_URL = 'https://zhidao.baidu.com/index/?fr=&word={kw}'
     EXTRA_URL = 'https://newcopyright.baidu.com/'
+    RANDOM_WAIT_RANGE = (2.5, 4.5)
+
+    def _build_search_url(self, term, page_num):
+        url = self.SEARCH_URL.format(kw=quote(term))
+        if page_num:
+            offset = self.page_offset(page_num, 10, 0)
+            url += f"&pn={offset}"
+        return url
 
     # 手机版结果区：认 data-url / 卡片 id，再兜底扫一遍普通链接
     EXTRACT_JS = r"""
@@ -132,7 +140,8 @@ class ZhidaoMobileEngine(BaseEngine):
         for i in range(max(1, retries)):
             try:
                 data = page.evaluate(ZhidaoMobileEngine.EXTRACT_JS) or data
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("百度知道手机版结果页解析失败，按未知类型处理", exc)
                 data = {'items': [], 'kind': 'unknown'}
             if data.get('items') or data.get('kind') == 'empty':
                 return data
@@ -144,12 +153,10 @@ class ZhidaoMobileEngine(BaseEngine):
         results = []
         page = None
         try:
-            url = self.SEARCH_URL.format(kw=quote(term))
-            if page_num:
-                url += f"&pn={page_num * 10}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(2.5, 4.5))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or "").lower()
             if "wappass" in cur or "verify" in cur or "captcha" in cur or "passport" in cur:
@@ -161,7 +168,8 @@ class ZhidaoMobileEngine(BaseEngine):
                 try:
                     page.evaluate("() => window.scrollTo(0, document.body.scrollHeight)")
                     time.sleep(0.8)
-                except Exception:
+                except Exception as exc:
+                    log_suppressed_error("百度知道手机版翻页滚动失败", exc)
                     pass
 
             data = self._wait_items(page)
@@ -201,5 +209,6 @@ class ZhidaoMobileEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭百度知道手机版搜索页面失败", exc)
                 pass

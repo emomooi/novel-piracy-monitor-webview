@@ -1,10 +1,8 @@
 # engines/baidu.py
 import re
-import time
-import random
 from urllib.parse import quote, urlparse
 from config import BLOCKED_DOMAINS
-from utils import title_matches, title_or_summary_matches
+from utils import log_suppressed_error, title_matches, title_or_summary_matches
 from .base import BaseEngine
 
 class BaiduEngine(BaseEngine):
@@ -12,15 +10,20 @@ class BaiduEngine(BaseEngine):
     SOURCE_LABEL = '百度'
     SEARCH_URL = 'https://www.baidu.com/s?wd={kw}'
     EXTRA_URL = 'https://newcopyright.baidu.com/'
+    RANDOM_WAIT_RANGE = (3, 5)
+
+    def _build_search_url(self, term, page_num):
+        offset = self.page_offset(page_num, 10, 0)
+        return f"https://www.baidu.com/s?wd={quote(term)}&pn={offset}"
 
     def fetch(self, context, term, page_num=0, book_kw=''):
         results = []
         page = None
         try:
-            url = f"https://www.baidu.com/s?wd={quote(term)}&pn={page_num * 10}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(3, 5))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or "").lower()
             if "wappass" in cur or "verify" in cur or "captcha" in cur:
@@ -106,7 +109,7 @@ class BaiduEngine(BaseEngine):
                 raw_url = it.get('url') or ''
 
                 # 白名单命中 → 跳过解析
-                if raw_url and raw_url in self.app.whitelist_common:
+                if raw_url and self.app.is_whitelisted(raw_url):
                     self.log(f"    ⚪ 白名单命中，跳过解析: {raw_url[:80]}")
                     it['real_url'] = raw_url
                     it['redirects'] = []
@@ -144,7 +147,8 @@ class BaiduEngine(BaseEngine):
                         host = (urlparse(real_url).hostname or '').lower()
                         if host.startswith('www.'): host = host[4:]
                         if host and 'baidu.com' not in host: it['author'] = host
-                    except Exception: pass
+                    except Exception as exc:
+                        log_suppressed_error("百度结果作者域名解析失败", exc)
 
                 date = '未知'
                 m = re.search(r'(\d{4}年\d{1,2}月\d{1,2}日)', it['summary'])
@@ -172,4 +176,5 @@ class BaiduEngine(BaseEngine):
         finally:
             try:
                 if page and not getattr(self.app, 'keep_page', False): page.close()
-            except Exception: pass
+            except Exception as exc:
+                log_suppressed_error("关闭百度搜索页面失败", exc)

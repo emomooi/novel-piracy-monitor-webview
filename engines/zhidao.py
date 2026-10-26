@@ -1,23 +1,27 @@
 # engines/zhidao.py
-import time
-import random
 from urllib.parse import quote
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 class ZhidaoEngine(BaseEngine):
     SOURCE_ID = 'zhidao'
     SOURCE_LABEL = '百度知道'
     SEARCH_URL = 'https://zhidao.baidu.com/search?word={kw}'
     EXTRA_URL = 'https://newcopyright.baidu.com/'
+    RANDOM_WAIT_RANGE = (3, 5)
+
+    def _build_search_url(self, term, page_num):
+        offset = self.page_offset(page_num, 10, 0)
+        return f"https://zhidao.baidu.com/search?word={quote(term)}&pn={offset}"
 
     def fetch(self, context, term, page_num=0, book_kw=''):
         results = []
         page = None
         try:
-            url = f"https://zhidao.baidu.com/search?word={quote(term)}&pn={page_num * 10}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(3, 5))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or "").lower()
             if "wappass" in cur or "verify" in cur or "captcha" in cur or "passport" in cur:
@@ -83,5 +87,6 @@ class ZhidaoEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭百度知道搜索页面失败", exc)
                 pass

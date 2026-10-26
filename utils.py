@@ -1,20 +1,31 @@
 import os
 import json
 import re
+import sys
+import tempfile
 from config import *
+
+def log_suppressed_error(context, error):
+    print(
+        f"[suppressed] {context}: {type(error).__name__}: {error}",
+        file=sys.stderr,
+    )
+
 
 try:
     from PIL import Image, ImageDraw
     HAS_TRAY = True
-except ImportError:
+except ImportError as exc:
     HAS_TRAY = False
+    log_suppressed_error("Pillow unavailable; tray icon support disabled", exc)
 
 def load_json(path, default):
     if os.path.exists(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception:
+        except Exception as exc:
+            log_suppressed_error(f"读取 JSON {path} 失败，使用默认值", exc)
             pass
     return default
 
@@ -22,27 +33,138 @@ def save_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def migrate_old_files():
-    """老文件迁移（一次即可，幂等）"""
-    old_seen = os.path.join(BASE_DIR, "monitor_seen.json")
-    if os.path.exists(old_seen) and not os.path.exists(SEEN_ZHIDAO_FILE):
-        try: os.rename(old_seen, SEEN_ZHIDAO_FILE)
-        except Exception: pass
+def migrate_old_files(log_callback=None):
+    """幂等归档旧记录及白名单；白名单合并成功后才归档源文件。"""
+    def log(message, error=False):
+        if log_callback:
+            try:
+                log_callback(message)
+                return
+            except Exception as exc:
+                log_suppressed_error("迁移日志回调失败，改用标准输出", exc)
+                pass
+        print(message, file=sys.stderr if error else sys.stdout)
 
-    old_baidu = os.path.join(BASE_DIR, "monitor_seen_zhinengti.json")
-    if os.path.exists(old_baidu) and not os.path.exists(SEEN_BAIDU_FILE):
-        try: os.rename(old_baidu, SEEN_BAIDU_FILE)
-        except Exception: pass
+    # 这些旧记录文件没有运行时读取路径，仅归档保留，不写入新文件。
+    old_seen_files = (
+        os.path.join(BASE_DIR, "monitor_seen.json"),
+        os.path.join(BASE_DIR, "monitor_seen_zhinengti.json"),
+        SEEN_SOGOU_LEGACY_FILE,
+        SEEN_SO360_LEGACY_FILE,
+        SEEN_TOUTIAO_LEGACY_FILE,
+    )
+    for old_path in old_seen_files:
+        if os.path.isfile(old_path):
+            archive_path = _archive_legacy_file(old_path, log)
+            if archive_path:
+                log(f"[migration] 已归档旧记录：{archive_path}")
 
-    # 引擎改名：搜狗PC / 360PC / 头条移动 的旧记录文件自动改名为新名字（保留去重历史）
-    for old_path, new_path in (
-        (SEEN_SOGOU_LEGACY_FILE, SEEN_SOGOU_PC_FILE),
-        (SEEN_SO360_LEGACY_FILE, SEEN_SO360_PC_FILE),
-        (SEEN_TOUTIAO_LEGACY_FILE, SEEN_TOUTIAO_MOBILE_FILE),
-    ):
-        if os.path.exists(old_path) and not os.path.exists(new_path):
-            try: os.rename(old_path, new_path)
-            except Exception: pass
+    _merge_legacy_whitelists(log)
+
+
+def _archive_legacy_file(old_path, log):
+    base_path = old_path + ".migrated"
+    index = 0
+    while True:
+        archive_path = base_path if index == 0 else f"{base_path}.{index}"
+        if os.path.lexists(archive_path):
+            index += 1
+            continue
+        try:
+            # Windows os.rename 不覆盖已有目标；遇到并发占用时换下一个归档名。
+            os.rename(old_path, archive_path)
+            return archive_path
+        except OSError as exc:
+            if os.path.lexists(archive_path):
+                index += 1
+                continue
+            log(
+                f"[migration] 归档失败，下次启动将重试；原文件保留：{old_path}: {exc}",
+            )
+            return None
+
+
+def _read_json_array(path, description, log):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        log(f"[migration] 读取{description}失败，保留原文件：{path}: {exc}", error=True)
+        return None
+    if not isinstance(data, list):
+        log(f"[migration] {description}不是 JSON 数组，保留原文件并跳过：{path}", error=True)
+        return None
+    if not all(isinstance(item, str) for item in data):
+        log(f"[migration] {description}数组包含非字符串项目，保留原文件并跳过：{path}", error=True)
+        return None
+    return data
+
+
+def _merge_legacy_whitelists(log):
+    for old_path in WHITELIST_LEGACY_FILES:
+        if not os.path.isfile(old_path):
+            continue
+
+        legacy_entries = _read_json_array(old_path, "旧白名单", log)
+        if legacy_entries is None:
+            continue
+
+        if os.path.exists(WHITELIST_COMMON_FILE):
+            current = _read_json_array(WHITELIST_COMMON_FILE, "现有白名单", log)
+            if current is None:
+                continue
+        else:
+            current = []
+
+        merged = list(current)
+        for item in legacy_entries:
+            if item not in merged:
+                merged.append(item)
+        merged.sort()
+
+        staged_path = None
+        try:
+            if merged != current:
+                target_dir = os.path.dirname(WHITELIST_COMMON_FILE) or "."
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    encoding="utf-8",
+                    dir=target_dir,
+                    prefix=".whitelist-migration-",
+                    suffix=".tmp",
+                    delete=False,
+                ) as staged_file:
+                    staged_path = staged_file.name
+                    json.dump(merged, staged_file, ensure_ascii=False, indent=2)
+        except OSError as exc:
+            log(f"[migration] 准备白名单合并失败，保留原文件以便下次重试：{old_path}: {exc}", error=True)
+            _remove_staged_file(staged_path, log)
+            continue
+
+        # 不变量：必须先确认合并结果写入目标，再归档旧文件；归档前目标已包含全部旧白名单。
+        if staged_path:
+            try:
+                os.replace(staged_path, WHITELIST_COMMON_FILE)
+                staged_path = None
+            except OSError as exc:
+                log(f"[migration] 写入合并白名单失败，保留原文件以便下次重试：{WHITELIST_COMMON_FILE}: {exc}", error=True)
+                _remove_staged_file(staged_path, log)
+                continue
+
+        archive_path = _archive_legacy_file(old_path, log)
+        if archive_path:
+            log(f"[migration] 已合并并归档旧白名单：{archive_path}")
+        else:
+            log(f"[migration] 白名单已合并；旧文件仍在原位，归档失败，下次启动将重试：{old_path}")
+
+
+def _remove_staged_file(path, log):
+    if not path or not os.path.exists(path):
+        return
+    try:
+        os.remove(path)
+    except OSError as exc:
+        log(f"[migration] 清理临时文件失败：{path}: {exc}", error=True)
 
 def generate_icon():
     if not HAS_TRAY:
@@ -51,7 +173,8 @@ def generate_icon():
     try:
         if os.path.exists(ICON_FILE):
             return Image.open(ICON_FILE).copy()
-    except Exception:
+    except Exception as exc:
+        log_suppressed_error(f"读取图标 {ICON_FILE} 失败，使用绘制图标", exc)
         pass
     # 兜底：原来的手绘逻辑
     img = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
@@ -70,7 +193,8 @@ def ensure_ico():
     try:
         img.save(ICON_FILE, format='ICO', sizes=[(64, 64)])
         return ICON_FILE
-    except Exception:
+    except Exception as exc:
+        log_suppressed_error(f"保存图标 {ICON_FILE} 失败", exc)
         return None
 
 # ==================== 后缀数据结构 ====================
@@ -127,7 +251,8 @@ def fmt_hms(seconds):
     """秒数 → 小时:分钟:秒（如 01:23:45），用来显示「本轮用时」"""
     try:
         total = int(round(float(seconds or 0)))
-    except Exception:
+    except Exception as exc:
+        log_suppressed_error("格式化耗时失败，使用 0 秒", exc)
         total = 0
     if total < 0:
         total = 0
@@ -151,7 +276,8 @@ def normalize_date(date_str):
         try:
             y, m, d = int(nums[0]), int(nums[1]), int(nums[2])
             return f"{y}/{m:02d}/{d:02d}"
-        except Exception:
+        except Exception as exc:
+            log_suppressed_error("解析日期失败，返回未知日期", exc)
             pass
     return "未知"
 

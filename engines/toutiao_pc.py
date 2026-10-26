@@ -10,13 +10,12 @@
 自愈：共用存档里的头条 cookie 一旦被风控，服务端只会回「热榜」、不给结果卡片。
      此时清掉头条系 cookie 再试一次（整个进程只清一次，避免死循环）。
 """
-import random
 import re
-import time
 from urllib.parse import quote, urlparse, parse_qs, unquote
 
 from config import BLOCKED_DOMAINS
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class ToutiaoPCEngine(BaseEngine):
@@ -24,9 +23,16 @@ class ToutiaoPCEngine(BaseEngine):
     SOURCE_LABEL = '头条PC'
     SEARCH_URL = 'https://so.toutiao.com/search?dvpf=pc&keyword={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
+    RANDOM_WAIT_RANGE = (4, 6)
 
     # 整个进程只自愈清理一次
     _cookie_cleared = False
+
+    def _build_search_url(self, term, page_num):
+        normalized_page = max(0, int(page_num or 0))
+        offset = self.page_offset(normalized_page, 10, 0)
+        return (f"https://so.toutiao.com/search?dvpf=pc&source=input"
+                f"&keyword={quote(term)}&offset={offset}&enable_druid_v2=1")
 
     @staticmethod
     def _decode_real_url(href):
@@ -45,7 +51,8 @@ class ToutiaoPCEngine(BaseEngine):
                 if not nxt or nxt == href:
                     break
                 href = unquote(nxt)
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("头条跳转 URL 解析失败，保留当前链接", exc)
                 break
         return href
 
@@ -65,14 +72,16 @@ class ToutiaoPCEngine(BaseEngine):
             cur = (page.url or '').lower()
             if any(k in cur for k in ('captcha', 'verify', 'challenge', 'secsdk')):
                 return True
-        except Exception:
+        except Exception as exc:
+            log_suppressed_error("头条验证码检测读取 URL 失败", exc)
             pass
         # 2) 正文关键词（截图里那种"请完成下列验证后继续"就靠这里命中）
         try:
             body_text = page.text_content('body') or ''
             if any(k in body_text for k in self.CAPTCHA_TEXTS):
                 return True
-        except Exception:
+        except Exception as exc:
+            log_suppressed_error("头条验证码检测读取正文失败", exc)
             pass
         # 3) 弹窗 DOM（头条验证码一般是浮层容器 + 拼图/滑块）
         try:
@@ -95,19 +104,18 @@ class ToutiaoPCEngine(BaseEngine):
             """)
             if hit:
                 return True
-        except Exception:
+        except Exception as exc:
+            log_suppressed_error("头条验证码检测读取弹窗 DOM 失败", exc)
             pass
         return False
     def _scrape(self, context, term, page_num):
         """抓取一页，返回原始条目（title/href/summary/date）"""
         page = None
         try:
-            offset = max(0, int(page_num or 0)) * 10
-            url = (f"https://so.toutiao.com/search?dvpf=pc&source=input"
-                   f"&keyword={quote(term)}&offset={offset}&enable_druid_v2=1")
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(4, 6))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             items = page.evaluate(r"""
                 () => {
@@ -148,7 +156,8 @@ class ToutiaoPCEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭头条 PC 搜索页面失败", exc)
                 pass
 
     def _clear_toutiao_cookies(self, context):
@@ -194,7 +203,8 @@ class ToutiaoPCEngine(BaseEngine):
                 if host.startswith('www.'):
                     host = host[4:]
                 author = host or '头条搜索'
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("头条结果作者域名解析失败，使用默认名称", exc)
                 author = '头条搜索'
 
             nr = self.normalize_result(

@@ -1,8 +1,7 @@
 # engines/tieba.py
 import time
-import random
 from urllib.parse import quote
-from utils import title_or_summary_matches
+from utils import log_suppressed_error, title_or_summary_matches
 from engines.base import BaseEngine
 
 class TiebaEngine(BaseEngine):
@@ -11,10 +10,14 @@ class TiebaEngine(BaseEngine):
     SEARCH_URL = 'https://tieba.baidu.com/f/search/res?ie=utf-8&qw={kw}'
     EXTRA_URL = 'https://newcopyright.baidu.com/'
 
+    def _build_search_url(self, term, page_num):
+        page_no = self.page_offset(page_num, 1, 0)
+        return f"https://tieba.baidu.com/f/search/res?ie=utf-8&qw={quote(term)}&pn={page_no}"
+
     def fetch(self, context, term, page_num=0, book_kw=''):
         page = None
         try:
-            url = f"https://tieba.baidu.com/f/search/res?ie=utf-8&qw={quote(term)}&pn={page_num}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="networkidle", timeout=40000)
             time.sleep(4)
@@ -108,5 +111,6 @@ class TiebaEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭贴吧搜索页面失败", exc)
                 pass

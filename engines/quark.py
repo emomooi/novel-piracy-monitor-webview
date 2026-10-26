@@ -6,12 +6,12 @@
 - 结果卡片用多套选择器兜底，尽量不因改版而抓空
 - 最终网址 = 落地页；源链接 = 卡片里的原始链接（若为跳转链则原样保留）
 """
-import random
-import time
+
 from urllib.parse import quote, urlparse, parse_qs, unquote
 
 from config import BLOCKED_DOMAINS
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class QuarkEngine(BaseEngine):
@@ -21,6 +21,7 @@ class QuarkEngine(BaseEngine):
     FETCH_URL = ''                      # 实际抓取网址；留空就用上面的 SEARCH_URL
     HOME_BASE = 'https://quark.sm.cn'   # 补全相对链接用（子类改成自己的域名）
     EXTRA_URL = 'https://ipp.quark.cn/#/home'
+    RANDOM_WAIT_RANGE = (3, 5)
 
     # 风控/验证码特征
     CAPTCHA_URL_TOKENS = ('_____tmd_____', '/punish', 'captcha', 'verify', 'wappass')
@@ -30,6 +31,12 @@ class QuarkEngine(BaseEngine):
     # 「抱歉，未找到相关内容！」，以前这种情况一声不吭，现在会提醒去浏览器登录一次
     LOGIN_TEXT_TOKENS = ('请先登录', '登录后查看', '登录后继续', '请登录',
                          '扫码登录', '账号登录', '登录后即可')
+
+    def _build_search_url(self, term, page_num):
+        normalized_page = max(0, int(page_num or 0))
+        offset = self.page_offset(normalized_page, 10, 0)
+        tpl = self.FETCH_URL or self.SEARCH_URL
+        return tpl.format(kw=quote(term)) + f"&offset={offset}"
 
     # 这一段在页面里找「登录框 / 登录弹窗 / 有没有结果」
     LOGIN_STATE_JS = r"""
@@ -88,7 +95,8 @@ class QuarkEngine(BaseEngine):
                 if not nxt.startswith('http') or nxt == href:
                     break
                 href = nxt
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("夸克跳转 URL 解析失败，保留当前链接", exc)
                 break
         return href
 
@@ -96,12 +104,10 @@ class QuarkEngine(BaseEngine):
         results = []
         page = None
         try:
-            offset = max(0, int(page_num or 0)) * 10
-            tpl = self.FETCH_URL or self.SEARCH_URL
-            url = tpl.format(kw=quote(term)) + f"&offset={offset}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(3, 5))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '')
@@ -117,7 +123,8 @@ class QuarkEngine(BaseEngine):
             # ★ 需要登录的检测：夸克没登录时会假装没搜到（只有登录框），必须提醒
             try:
                 login_state = page.evaluate(self.LOGIN_STATE_JS)
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("夸克登录状态解析失败", exc)
                 login_state = {}
             if self._need_login(login_state, body_text):
                 self.app._last_fetch_raw_count = 0
@@ -212,7 +219,8 @@ class QuarkEngine(BaseEngine):
                     if host.startswith('www.'):
                         host = host[4:]
                     author = host or '夸克搜索'
-                except Exception:
+                except Exception as exc:
+                    log_suppressed_error("夸克结果作者域名解析失败，使用默认名称", exc)
                     author = '夸克搜索'
 
                 nr = self.normalize_result(
@@ -237,5 +245,6 @@ class QuarkEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭夸克搜索页面失败", exc)
                 pass

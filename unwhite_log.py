@@ -20,6 +20,7 @@ import time
 
 from config import (UNWHITE_RECORD_FILE, UNWHITE_DOC_FILE, UNWHITE_LEGACY_BOOK,
                     SRC_LABEL)
+from utils import log_suppressed_error
 
 _lock = threading.Lock()
 _records = None          # [{"url":..., "book":..., "source":..., "seq":...}]，seq 越大越新
@@ -38,7 +39,8 @@ def _load():
     try:
         with open(UNWHITE_RECORD_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-    except Exception:
+    except Exception as exc:
+        log_suppressed_error("读取未加白记录失败，按空记录继续", exc)
         data = []
     if not isinstance(data, list):
         data = []
@@ -54,7 +56,8 @@ def _load():
         source = str(it.get("source") or "").strip()
         try:
             seq = int(it.get("seq") or 0)
-        except Exception:
+        except Exception as exc:
+            log_suppressed_error("解析未加白记录序号失败，按 0 处理", exc)
             seq = 0
         _records.append({"url": url, "book": book, "source": source, "seq": seq})
         _keys.add((book, source, url))
@@ -66,7 +69,8 @@ def _save():
     try:
         with open(UNWHITE_RECORD_FILE, "w", encoding="utf-8") as f:
             json.dump(_records, f, ensure_ascii=False, indent=2)
-    except Exception:
+    except Exception as exc:
+        log_suppressed_error("保存未加白记录失败", exc)
         pass
 
 
@@ -167,7 +171,8 @@ def build_doc(whitelist=None):
         with open(UNWHITE_DOC_FILE, "w", encoding="utf-8") as f:
             f.write(text)
         _last_doc_at = time.time()
-    except Exception:
+    except Exception as exc:
+        log_suppressed_error("写入未加白链接文档失败", exc)
         pass
     return len(lines)
 

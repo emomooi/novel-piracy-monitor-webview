@@ -21,15 +21,23 @@ import webbrowser
 try:
     from winotify import Notification, audio
     HAS_WINOTIFY = True
-except ImportError:
+except ImportError as exc:
     HAS_WINOTIFY = False
+    print(f"[optional] winotify unavailable; desktop notifications disabled: {exc}", file=sys.stderr)
 
 import webview
 from playwright.sync_api import sync_playwright
 
-from config import SOURCE_GROUPS, BLOCKED_DOMAINS, BLOCKED_URL_TOKENS, ALLOWED_URL_PREFIXES, WHITELIST_COMMON_FILE
+from config import (
+    SOURCE_GROUPS,
+    SRC_LABEL as SOURCE_LABELS,
+    BLOCKED_DOMAINS,
+    BLOCKED_URL_TOKENS,
+    ALLOWED_URL_PREFIXES,
+    WHITELIST_COMMON_FILE,
+)
 from engines import ENGINE_MAP
-from utils import title_or_summary_matches, save_json
+from utils import title_or_summary_matches, save_json, migrate_old_files
 
 import single_instance
 
@@ -92,14 +100,29 @@ _frontend_mode = {"v": False}
 # pause_for_user 里等用户的搜索线程）
 _current_adapter = {"v": None}
 
+
+def _log_suppressed_error(context, error, api=None):
+    message = f"[suppressed] {context}: {type(error).__name__}: {error}"
+    logger = api or _current_adapter["v"]
+    if logger is not None:
+        try:
+            logger.push_log(message)
+            return
+        except Exception as log_error:
+            print(f"{message}（界面日志不可用：{log_error}）", file=sys.stderr)
+            return
+    print(message, file=sys.stderr)
+
+
 # 会话内去重：同一来源的同一 URL 只显示一次（key = (来源中文名, url)）
 _displayed_urls = set()
+_displayed_urls_lock = threading.Lock()
 
 # ==================== 历史记录 / 新链接（批 5-D + 批 6） ====================
 # 单文件去重库：seen_urls.json 是对象 {"url": {"book": 书名, "source": 来源}}
 _seen_urls = {}
 _seen_urls_loaded = False
-_seen_urls_lock = threading.Lock()
+_seen_urls_lock = threading.RLock()
 
 
 def _load_seen_urls():
@@ -108,40 +131,44 @@ def _load_seen_urls():
     格式：{"url": {"book": …, "source": …}}
     """
     global _seen_urls, _seen_urls_loaded
-    if _seen_urls_loaded:
-        return
-    try:
-        with open(SEEN_URLS_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception:                                             # noqa: BLE001
-        data = {}
+    with _seen_urls_lock:
+        if _seen_urls_loaded:
+            return
+        try:
+            with open(SEEN_URLS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as exc:                                      # noqa: BLE001
+            _log_suppressed_error("读取历史记录失败，按空记录继续", exc)
+            data = {}
 
-    # 类型守卫：只接受 dict 格式，其他一律当空
-    if not isinstance(data, dict):
-        _seen_urls = {}
+        # 类型守卫：只接受 dict 格式，其他一律当空
+        if not isinstance(data, dict):
+            _seen_urls = {}
+            _seen_urls_loaded = True
+            return
+
+        cleaned = {}
+        for k, v in data.items():
+            if not k:
+                continue
+            if isinstance(v, dict):
+                cleaned[str(k)] = {
+                    "book": str(v.get("book", "")),
+                    "source": str(v.get("source", "")),
+                }
+            else:
+                cleaned[str(k)] = {"book": "", "source": ""}
+        _seen_urls = cleaned
         _seen_urls_loaded = True
-        return
-
-    cleaned = {}
-    for k, v in data.items():
-        if not k:
-            continue
-        if isinstance(v, dict):
-            cleaned[str(k)] = {
-                "book": str(v.get("book", "")),
-                "source": str(v.get("source", "")),
-            }
-        else:
-            cleaned[str(k)] = {"book": "", "source": ""}
-    _seen_urls = cleaned
-    _seen_urls_loaded = True
 
 
 def _save_seen_urls():
     """写回 seen_urls.json（{url: {book, source}} 对象）"""
     try:
-        with open(SEEN_URLS_FILE, "w", encoding="utf-8") as f:
-            json.dump(_seen_urls, f, ensure_ascii=False, indent=2)
+        with _seen_urls_lock:
+            snapshot = dict(_seen_urls)
+            with open(SEEN_URLS_FILE, "w", encoding="utf-8") as f:
+                json.dump(snapshot, f, ensure_ascii=False, indent=2)
     except Exception as e:                                        # noqa: BLE001
         print(f"[seen_urls] save failed: {e}")
 
@@ -184,7 +211,8 @@ def _load_stats():
             bs = data.get("by_source", {})
             if isinstance(bs, dict):
                 _stats["by_source"] = dict(bs)
-    except Exception:                                             # noqa: BLE001
+    except Exception as exc:                                      # noqa: BLE001
+        _log_suppressed_error("读取搜索统计失败，按默认值继续", exc)
         pass
     _stats_loaded["v"] = True
 
@@ -245,7 +273,7 @@ def _stats_add_source_hits(label, n):
 # 白名单（简化版）：common 白名单 URL 集合 + 懒加载标志 + 读写锁
 _whitelist_common = set()
 _wl_loaded = False
-_wl_lock = threading.Lock()
+_wl_lock = threading.RLock()
 
 
 # 白名单词：标题 / 摘要 / url 命中任一 → 自动加白
@@ -262,17 +290,19 @@ def _make_list_loader(file_path, target_set, flag_name):
     ★ flag_name 是模块级布尔标志名（懒加载标志），赋值走 global。
     """
     def loader():
-        if globals()[flag_name]:
-            return
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, list):
-                target_set.clear()
-                target_set.update(str(x) for x in data if x)
-        except Exception:                                         # noqa: BLE001
-            pass
-        globals()[flag_name] = True
+        with _wl_lock:
+            if globals()[flag_name]:
+                return
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, list):
+                    target_set.clear()
+                    target_set.update(str(x) for x in data if x)
+            except Exception as exc:                                  # noqa: BLE001
+                _log_suppressed_error(f"读取白名单文件失败，按当前集合继续：{file_path}", exc)
+                pass
+            globals()[flag_name] = True
     loader.__doc__ = f"懒加载 {file_path}（只读一次）"
     return loader
 
@@ -286,7 +316,8 @@ _load_whitelist_words = _make_list_loader(
 def _save_whitelist():
     """把白名单落盘（排序后写，方便人工查看）"""
     try:
-        save_json(WHITELIST_COMMON_FILE, sorted(_whitelist_common))
+        with _wl_lock:
+            save_json(WHITELIST_COMMON_FILE, sorted(_whitelist_common))
     except Exception as e:                                        # noqa: BLE001
         print(f"[whitelist] save failed: {e}", file=sys.stderr)
 
@@ -294,29 +325,31 @@ def _save_whitelist():
 def _save_whitelist_words():
     """把白名单词落盘"""
     try:
-        save_json(WHITELIST_WORDS_FILE, sorted(_whitelist_words))
+        with _wl_lock:
+            save_json(WHITELIST_WORDS_FILE, sorted(_whitelist_words))
     except Exception as e:                                        # noqa: BLE001
         print(f"[whitelist_words] save failed: {e}", file=sys.stderr)
 
 
 def _match_whitelist_word(row):
     """row 是 dict，含 title/summary/url。命中任一白名单词则返回该词，否则返回 ''"""
-    if not _whitelist_words:
+    with _wl_lock:
+        if not _whitelist_words:
+            return ""
+        hay = " ".join([
+            str(row.get("title", "")),
+            str(row.get("summary", "")),
+            str(row.get("url", "")),
+        ]).lower()
+        for w in _whitelist_words:
+            if w and str(w).lower() in hay:
+                return w
         return ""
-    hay = " ".join([
-        str(row.get("title", "")),
-        str(row.get("summary", "")),
-        str(row.get("url", "")),
-    ]).lower()
-    for w in _whitelist_words:
-        if w and str(w).lower() in hay:
-            return w
-    return ""
 
 # ==================== 书签 ====================
 _bookmarks = []                     # [{id, name, suffixes: [{text, enabled}]}]
 _bm_loaded = False
-_bm_lock = threading.Lock()
+_bm_lock = threading.RLock()
 
 
 def _load_bookmarks():
@@ -325,42 +358,46 @@ def _load_bookmarks():
     格式：[{id, name, suffixes: [{text, enabled}]}]
     """
     global _bookmarks, _bm_loaded
-    if _bm_loaded:
-        return
-    try:
-        with open(BOOKMARKS_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception:                                             # noqa: BLE001
-        data = []
+    with _bm_lock:
+        if _bm_loaded:
+            return
+        try:
+            with open(BOOKMARKS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as exc:                                      # noqa: BLE001
+            _log_suppressed_error("读取书签失败，按空列表继续", exc)
+            data = []
 
-    # 类型守卫：只接受 list，且元素必须是 dict，其他一律丢弃
-    if not isinstance(data, list):
-        data = []
-    _bookmarks = [item for item in data if isinstance(item, dict)]
-    _bm_loaded = True
+        # 类型守卫：只接受 list，且元素必须是 dict，其他一律丢弃
+        if not isinstance(data, list):
+            data = []
+        _bookmarks = [item for item in data if isinstance(item, dict)]
+        _bm_loaded = True
 
 
 def _save_bookmarks():
     try:
-        with open(BOOKMARKS_FILE, "w", encoding="utf-8") as f:
-            json.dump(_bookmarks, f, ensure_ascii=False, indent=2)
+        with _bm_lock:
+            with open(BOOKMARKS_FILE, "w", encoding="utf-8") as f:
+                json.dump(_bookmarks, f, ensure_ascii=False, indent=2)
     except Exception as e:                                        # noqa: BLE001
         print(f"[bookmarks] save failed: {e}", file=sys.stderr)
 
 
 def _bookmarks_for_ui():
     """转成前端友好格式（去掉内部字段，只留 id/name/suffixCount/suffixes）"""
-    return [
-        {
-            "id": bm.get("id", ""),
-            "name": bm.get("name", ""),
-            "suffixCount": sum(
-                1 for s in bm.get("suffixes", []) if s.get("enabled", True)
-            ),
-            "suffixes": [dict(s) for s in bm.get("suffixes", [])],
-        }
-        for bm in _bookmarks
-    ]
+    with _bm_lock:
+        return [
+            {
+                "id": bm.get("id", ""),
+                "name": bm.get("name", ""),
+                "suffixCount": sum(
+                    1 for s in bm.get("suffixes", []) if s.get("enabled", True)
+                ),
+                "suffixes": [dict(s) for s in bm.get("suffixes", [])],
+            }
+            for bm in _bookmarks
+        ]
 
 
 # 前台模式撞验证码后最长等用户多久（秒）：超时就本轮跳过该引擎
@@ -368,26 +405,6 @@ CAPTCHA_WAIT_SECONDS = 600
 
 # 同一页验证码处理完最多重试几次：防止用户没真过验证时无限弹窗
 MAX_CAPTCHA_RETRY = 3
-
-# 来源勾选框的 value（引擎组 id）→ 中文名，日志里显示用
-SOURCE_LABELS = {
-    "quark_cn": "夸克",
-    "baidu": "百度",
-    "baidu_mobile": "百度移动版",
-    "zhidao": "知道",
-    "zhidao_mobile": "知道移动版",
-    "tieba": "贴吧",
-    "bing": "必应",
-    "toutiao_pc": "头条",
-    "toutiao_mobile": "头条移动版",
-    "sogou_pc": "搜狗",
-    "sogou_mobile": "搜狗移动版",
-    "so360_pc": "360",
-    "so360_mobile": "360移动版",
-    "sogou_weixin": "微信",
-    "weibo_mobile": "微博",
-}
-
 
 def classify_source(label, r):
     """按 URL 把结果归到更精确的来源（知道 / 贴吧 / 微信 / 文心），否则用原标签。
@@ -410,7 +427,7 @@ def classify_source(label, r):
     return label
 
 
-def windows_toast(title, msg):
+def windows_toast(title, msg, api=None):
     """Windows 桌面通知：自动消失（duration=short）。失败静默忽略。"""
     if not HAS_WINOTIFY:
         return
@@ -427,10 +444,12 @@ def windows_toast(title, msg):
         toast = Notification(**kwargs)
         try:
             toast.set_audio(audio.Default, loop=False)
-        except Exception:
+        except Exception as exc:
+            _log_suppressed_error("设置桌面通知声音失败，继续显示通知", exc, api)
             pass
         toast.show()
-    except Exception:
+    except Exception as exc:
+        _log_suppressed_error("显示桌面通知失败", exc, api)
         pass
 
 
@@ -461,6 +480,10 @@ class WebViewAppAdapter:
     def log(self, msg):
         return self.push_log(msg)
 
+    def is_whitelisted(self, url):
+        with _wl_lock:
+            return url in self.whitelist_common
+
     def push_log(self, msg):
         return self.api.push_log(str(msg))
 
@@ -475,12 +498,14 @@ class WebViewAppAdapter:
         if _frontend_mode["v"]:
             windows_toast(
                 "⚠️ 检测到验证码",
-                "请到浏览器完成验证，然后回到程序点「我已过验证，继续」。"
+                "请到浏览器完成验证，然后回到程序点「我已过验证，继续」。",
+                self,
             )
         else:
             windows_toast(
                 "⚠️ 检测到验证码",
-                "某搜索引擎撞验证码，本轮已跳过该引擎。"
+                "某搜索引擎撞验证码，本轮已跳过该引擎。",
+                self,
             )
         self.push_log(f"[暂停] {reason}")
         # 只有前台模式才弹窗等用户；后台模式直接返回，由搜索线程跳过该引擎
@@ -559,7 +584,8 @@ class Api:
     # ==================== 清空去重记录（前端「清空列表」时调） ====================
     def clear_displayed_urls(self):
         """清空会话内去重集合：清空列表后，再搜同一个词，旧 URL 会重新出现"""
-        _displayed_urls.clear()
+        with _displayed_urls_lock:
+            _displayed_urls.clear()
         print("[dedupe] 已清空已显示 URL 集合")
         return "ok"
 
@@ -578,15 +604,21 @@ class Api:
     # ==================== 载入历史数据（批 6） ====================
     def load_history(self):
         """返回历史记录列表（给前端「载入历史数据」渲染）"""
+        _load_whitelist()
         _load_seen_urls()
+        with _wl_lock:
+            whitelist_snapshot = set(_whitelist_common)
         result = []
-        for url, meta in _seen_urls.items():
+        with _seen_urls_lock:
+            seen_snapshot = list(_seen_urls.items())
+        for url, meta in seen_snapshot:
             if not isinstance(meta, dict):
                 meta = {}
             result.append({
                 "url": url,
                 "book": meta.get("book", ""),
                 "source": meta.get("source", ""),
+                "is_white": url in whitelist_snapshot,
             })
         print(f"[seen_urls] load_history → {len(result)} 条")
         return result
@@ -624,9 +656,10 @@ class Api:
                     n += 1
             if n:
                 _save_whitelist()
+            total = len(_whitelist_common)
         if op == "add":
-            self.push_log(f"已加入白名单 {n} 条（共 {len(_whitelist_common)} 条）")
-            print(f"[whitelist] add {n} → total {len(_whitelist_common)}")
+            self.push_log(f"已加入白名单 {n} 条（共 {total} 条）")
+            print(f"[whitelist] add {n} → total {total}")
         else:
             self.push_log(f"已取消白名单 {n} 条")
         return n
@@ -654,36 +687,41 @@ class Api:
     def get_whitelist_words(self):
         """返回白名单词（排序后的 list）"""
         _load_whitelist_words()
-        return sorted(_whitelist_words)
+        with _wl_lock:
+            return sorted(_whitelist_words)
 
     def save_whitelist_words(self, words):
         """全量替换白名单词并落盘，返回保存后的条数"""
         global _wlw_loaded
         _load_whitelist_words()
-        # 就地替换（不重新赋值）：保持与懒加载闭包持有的同一份 set 对象
-        _whitelist_words.clear()
-        _whitelist_words.update(str(w).strip() for w in (words or []) if str(w).strip())
-        _wlw_loaded = True
-        _save_whitelist_words()
-        self.push_log(f"白名单词已保存：{len(_whitelist_words)} 条")
-        print(f"[whitelist_words] saved {len(_whitelist_words)} 条")
+        with _wl_lock:
+            # 就地替换（不重新赋值）：保持与懒加载闭包持有的同一份 set 对象
+            _whitelist_words.clear()
+            _whitelist_words.update(str(w).strip() for w in (words or []) if str(w).strip())
+            _wlw_loaded = True
+            _save_whitelist_words()
+            count = len(_whitelist_words)
+        self.push_log(f"白名单词已保存：{count} 条")
+        print(f"[whitelist_words] saved {count} 条")
         # 通知前端：重新应用白名单词到所有已抓行
         try:
             self._push_js("window.applyWhitelistWords()")
-        except Exception:                                         # noqa: BLE001
+        except Exception as exc:                                  # noqa: BLE001
+            _log_suppressed_error("通知前端应用白名单词失败", exc, self)
             pass
-        return len(_whitelist_words)
+        return count
 
     def check_whitelist_word(self, text):
         """给前端调用：判断一段文本（标题+摘要+url）是否命中白名单词，返回命中的词或 ''"""
         _load_whitelist_words()
-        if not _whitelist_words:
+        with _wl_lock:
+            if not _whitelist_words:
+                return ""
+            hay = str(text or "").lower()
+            for w in _whitelist_words:
+                if w and str(w).lower() in hay:
+                    return w
             return ""
-        hay = str(text or "").lower()
-        for w in _whitelist_words:
-            if w and str(w).lower() in hay:
-                return w
-        return ""
 
     # ==================== 书签 ====================
     def get_bookmarks(self):
@@ -765,7 +803,8 @@ class Api:
         if adapter is not None:
             try:
                 adapter.wait_continue_event.set()
-            except Exception:                                     # noqa: BLE001
+            except Exception as exc:                              # noqa: BLE001
+                _log_suppressed_error("唤醒搜索线程失败", exc, self)
                 pass
         print("[search] 收到停止指令")
         return "ok"
@@ -1004,15 +1043,21 @@ class Api:
 
             # 命中白名单词 → 该 URL 自动加入白名单
             if _match_whitelist_word(r):
-                if url and url not in _whitelist_common:
-                    _whitelist_common.add(url)
-                    wl_dirty = True
+                if url:
+                    with _wl_lock:
+                        if url not in _whitelist_common:
+                            _whitelist_common.add(url)
+                            wl_dirty = True
 
             key = (src_label, url)
-            if url and key in _displayed_urls:
-                continue
             if url:
-                _displayed_urls.add(key)
+                with _displayed_urls_lock:
+                    if key in _displayed_urls:
+                        continue
+                    _displayed_urls.add(key)
+
+            with _wl_lock:
+                is_white = bool(url) and url in _whitelist_common
 
             # ★ 批 5-D：只对最终要推送的行判「新链接」
             #   （放在 _displayed_urls 去重之后，避免被过滤的行污染集合）
@@ -1027,7 +1072,7 @@ class Api:
                 "book": book,          # 批 5-C：导出按 (书名, 来源) 分组用
                 "srcId": engine_id,
                 "isNew": is_new,       # 批 5-D：新链接标记
-                "is_white": bool(url) and url in _whitelist_common,
+                "is_white": is_white,
             })
 
         return len(matched), wl_dirty
@@ -1118,7 +1163,8 @@ class Api:
           - 前台模式 → 显示 Edge 窗口 + 撞验证码弹窗等用户点「我已过验证，继续」
         """
         self.set_searching(True)
-        _displayed_urls.clear()          # 每次搜索清空会话内去重集合
+        with _displayed_urls_lock:
+            _displayed_urls.clear()      # 每次搜索清空会话内去重集合
         _load_whitelist()                # 确保白名单已加载，方便给行打 is_white
         _load_whitelist_words()          # 确保白名单词已加载
         _stats_add_search()              # 批 5-B：本轮搜索轮数 +1（写入 搜索统计.json）
@@ -1193,7 +1239,8 @@ class Api:
                     else:
                         try:
                             max_pages = max(1, int(pages))
-                        except Exception:                         # noqa: BLE001
+                        except Exception as exc:                  # noqa: BLE001
+                            _log_suppressed_error("页数设置解析失败，回退到 10 页", exc, self)
                             max_pages = 10
 
                     all_results_count, job_matched = self._run_one_engine(
@@ -1265,6 +1312,10 @@ def main():
         print("程序已在运行")
         sys.exit(0)
 
+    # 单实例守卫通过后迁移，且早于窗口启动及任何运行数据读取。
+    migration_messages = []
+    migrate_old_files(migration_messages.append)
+
     api = Api()
 
     window = webview.create_window(
@@ -1280,6 +1331,20 @@ def main():
     # 注册唤醒回调：第二个实例启动时，把本窗口显示到最前
     guard.on_wake(lambda: _bring_to_front(window))
 
+    migration_messages_delivered = False
+
+    def show_migration_messages(*_args):
+        nonlocal migration_messages_delivered
+        if migration_messages_delivered:
+            return
+        migration_messages_delivered = True
+        for message in migration_messages:
+            try:
+                api.push_log(message)
+            except Exception as exc:
+                print(f"{message}（界面日志不可用：{exc}）", file=sys.stderr)
+
+    window.events.loaded += show_migration_messages
     webview.start(debug=os.environ.get("PM_DEBUG") == "1")
 
 

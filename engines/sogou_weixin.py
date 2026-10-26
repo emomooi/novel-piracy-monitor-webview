@@ -1,10 +1,8 @@
-import random
 import re
-import time
 from urllib.parse import quote
 
 from engines.base import BaseEngine
-from utils import title_or_summary_matches
+from utils import log_suppressed_error, title_or_summary_matches
 
 
 class SogouWeixinEngine(BaseEngine):
@@ -12,6 +10,11 @@ class SogouWeixinEngine(BaseEngine):
     SOURCE_LABEL = '微信'
     SEARCH_URL = 'https://weixin.sogou.com/weixin?type=2&query={kw}'
     EXTRA_URL = 'https://mp.weixin.qq.com/'
+    RANDOM_WAIT_RANGE = (2, 4)
+
+    def _build_search_url(self, term, page_num):
+        page_no = self.page_offset(page_num, 1, 1)
+        return f"https://weixin.sogou.com/weixin?query={quote(term)}&type=2&ie=utf8&page={page_no}"
 
     @staticmethod
     def _normalize_weixin_link(raw_href):
@@ -80,7 +83,8 @@ class SogouWeixinEngine(BaseEngine):
             cur = (page.url or '').lower()
             try:
                 body = (page.content() or '').lower()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("搜狗微信验证码页正文读取失败，按空正文继续", exc)
                 body = ''
             hit_captcha = (
                 'antispider' in cur
@@ -98,7 +102,8 @@ class SogouWeixinEngine(BaseEngine):
             try:
                 page.wait_for_url(
                     lambda u: 'mp.weixin.qq.com' in (u or ''), timeout=6000)
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("搜狗微信跳转等待超时或失败", exc)
                 pass
 
             final = page.url or ''
@@ -124,16 +129,17 @@ class SogouWeixinEngine(BaseEngine):
                 # ★ 撞验证码时保留页面给用户处理
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭搜狗微信跳转页面失败", exc)
                 pass
 
     def fetch(self, context, term, page_num=0, book_kw=''):
         page = None
         try:
-            url = f"https://weixin.sogou.com/weixin?query={quote(term)}&type=2&ie=utf8&page={page_num + 1}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(2, 4))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '').lower()
@@ -251,5 +257,6 @@ class SogouWeixinEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭搜狗微信搜索页面失败", exc)
                 pass

@@ -1,8 +1,7 @@
-import random
-import time
 from urllib.parse import quote
 
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class WeiboEngine(BaseEngine):
@@ -10,14 +9,18 @@ class WeiboEngine(BaseEngine):
     SOURCE_LABEL = '微博'
     SEARCH_URL = 'https://s.weibo.com/realtime?q={kw}&rd=realtime&tw=realtime&Refer=weibo_realtime'
     EXTRA_URL = 'https://service.account.weibo.com/rights/movie'   # 微博版权投诉页
+    RANDOM_WAIT_RANGE = (2, 4)
+
+    def _build_search_url(self, term, page_num):
+        return f"https://s.weibo.com/realtime?q={quote(term)}&rd=realtime&tw=realtime&Refer=weibo_realtime"
 
     def fetch(self, context, term, page_num=0, book_kw=''):
         page = None
         try:
-            url = f"https://s.weibo.com/realtime?q={quote(term)}&rd=realtime&tw=realtime&Refer=weibo_realtime"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(2, 4))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '').lower()
@@ -84,5 +87,6 @@ class WeiboEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭微博搜索页面失败", exc)
                 pass

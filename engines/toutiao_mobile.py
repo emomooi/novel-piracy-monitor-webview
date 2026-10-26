@@ -1,8 +1,7 @@
-import random
-import time
 from urllib.parse import quote, urlparse, parse_qs, unquote
 
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class ToutiaoMobileEngine(BaseEngine):
@@ -10,6 +9,12 @@ class ToutiaoMobileEngine(BaseEngine):
     SOURCE_LABEL = '头条移动'
     SEARCH_URL = 'https://m.toutiao.com/search?keyword={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
+    RANDOM_WAIT_RANGE = (2, 4)
+
+    def _build_search_url(self, term, page_num):
+        normalized_page = max(0, int(page_num or 0))
+        offset = self.page_offset(normalized_page, 10, 0)
+        return f"https://so.toutiao.com/search?keyword={quote(term)}&offset={offset}"
 
     @staticmethod
     def _extract_real_url(href):
@@ -35,12 +40,14 @@ class ToutiaoMobileEngine(BaseEngine):
                         h5_url = (nested_qs.get('h5_url') or [''])[0]
                         if h5_url:
                             return unquote(h5_url).split('?')[0].split('#')[0]
-                    except Exception:
+                    except Exception as exc:
+                        log_suppressed_error("头条中间页链接解析失败，使用外层链接", exc)
                         pass
                     return target.split('?')[0].split('#')[0]
                 return ''
             return href.split('?')[0].split('#')[0]
-        except Exception:
+        except Exception as exc:
+            log_suppressed_error("头条链接解析失败，返回空链接", exc)
             return ''
 
     def fetch(self, context, term, page_num=0, book_kw=''):
@@ -48,11 +55,10 @@ class ToutiaoMobileEngine(BaseEngine):
         try:
             # ★ 头条分页参数是 offset（每页 10 条），不是 page/page_num；
             #   不带 offset 时服务端永远返回第 1 页，这就是"翻页全是第一页"的根因。
-            offset = max(0, int(page_num or 0)) * 10
-            url = f"https://so.toutiao.com/search?keyword={quote(term)}&offset={offset}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(2, 4))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '').lower()
@@ -170,5 +176,6 @@ class ToutiaoMobileEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭头条移动搜索页面失败", exc)
                 pass

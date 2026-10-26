@@ -64,6 +64,13 @@ WORKING_SRC_ORDER = [
 ]
 SRC_ORDER = WORKING_SRC_ORDER
 
+# 主程序可用引擎映射顺序（包含手动搜索额外使用的微博桌面版）
+MAIN_ENGINE_ORDER = [
+    'quark_cn', 'baidu_mobile', 'baidu', 'zhidao_mobile', 'zhidao', 'tieba', 'bing',
+    'so360_mobile', 'so360_pc', 'toutiao_mobile', 'toutiao_pc',
+    'sogou_mobile', 'sogou_pc', 'sogou_weixin', 'weibo', 'weibo_mobile',
+]
+
 # 界面上的来源勾选框（顺序 = 勾选框顺序）：一个勾选框 = 一个来源组
 VISIBLE_SRC_ORDER = [
     'quark_cn',
@@ -97,7 +104,7 @@ SOURCE_GROUPS = {
 
 # 待测监控来源（测试专用程序只保留这些）
 # 夸克 4 个入口放一起
-# （www.quark.cn 主程序里已用，这里一起测作对照）
+# （主程序抓取使用 www.quark.cn；quark.sm.cn 在这里作为对照入口）
 TEST_SRC_ORDER = [
     'quark', 'quark_m', 'quark_so', 'quark_cn',
     'weibo', 'weibo_mobile',
@@ -129,7 +136,7 @@ MANUAL_SOURCE_COLUMNS = 2
 # 顺序（作者指定）：百度、百度m、知道、知道m、贴吧、必应、夸克、夸克m、头条、头条m、
 #                   微博、微博m、搜狗、搜狗m、360、360m、微信
 # 同一个引擎有 PC 版和手机版时：PC 版在前、手机版（名字带 m）紧随其后
-# 夸克两个入口：夸克 = www.quark.cn（PC），夸克m = quark.sm.cn（手机版）
+# 夸克两个入口：夸克 = quark.sm.cn，夸克m = m.sm.cn
 # 「按搜索引擎」那一栏是从上到下按同一顺序排
 # 以后新增的引擎接着往后排
 MANUAL_SOURCE_ORDER = [
@@ -164,7 +171,7 @@ MANUAL_SOURCE_LABEL = {
     'quark_cn': '夸克',
 }
 
-# 手动搜索里不显示的来源（夸克只留 www.quark.cn + quark.sm.cn 两个入口，
+# 手动搜索里不显示的来源（quark_cn 的后端抓取使用 www.quark.cn；手动打开链接仍按前端映射，
 # m.sm.cn / so.m.sm.cn 不显示；想换入口就改 MANUAL_SOURCE_ORDER 和这里）
 MANUAL_HIDDEN_SOURCES = ('quark_m', 'quark_so')
 

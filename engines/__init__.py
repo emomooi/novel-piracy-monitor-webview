@@ -1,5 +1,5 @@
 # engines/__init__.py
-from config import MANUAL_HIDDEN_SOURCES
+from config import MAIN_ENGINE_ORDER, MANUAL_HIDDEN_SOURCES, TEST_SRC_ORDER
 from engines.baidu import BaiduEngine
 from engines.baidu_mobile import BaiduMobileEngine
 from engines.zhidao import ZhidaoEngine
@@ -45,9 +45,7 @@ ALL_ENGINE_MAP = {
 # 主程序：只保留已跑通的来源
 ENGINE_MAP = {
     src_id: ALL_ENGINE_MAP[src_id]
-    for src_id in ('quark_cn', 'baidu_mobile', 'baidu', 'zhidao_mobile', 'zhidao', 'tieba', 'bing',
-                   'so360_mobile', 'so360_pc', 'toutiao_mobile', 'toutiao_pc',
-                   'sogou_mobile', 'sogou_pc', 'sogou_weixin', 'weibo', 'weibo_mobile')
+    for src_id in MAIN_ENGINE_ORDER
     if src_id in ALL_ENGINE_MAP
 }
 
@@ -55,15 +53,14 @@ ENGINE_MAP = {
 # 夸克 4 个入口一起对比；微博 + 移动端；搜狗/头条/360 的移动版
 TEST_ENGINE_MAP = {
     src_id: ALL_ENGINE_MAP[src_id]
-    for src_id in ('quark', 'quark_m', 'quark_so', 'quark_cn',
-                   'weibo', 'weibo_mobile',
-                   'sogou_mobile', 'toutiao_mobile', 'so360_mobile')
+    for src_id in TEST_SRC_ORDER
     if src_id in ALL_ENGINE_MAP
 }
 
 
 # 手动搜索：按 MANUAL_SOURCE_ORDER 排序展示；
-# 夸克保留 quark.sm.cn（夸克m）+ quark_cn（夸克）两个入口，quark_m / quark_so 不显示
+# 手动搜索保留 quark.sm.cn（夸克m）+ quark_cn 两个入口；主程序抓取 quark_cn 使用 www.quark.cn
+# quark_m / quark_so 不显示
 MANUAL_SEARCH_ENGINE_MAP = {
     sid: cls for sid, cls in ALL_ENGINE_MAP.items()
     if sid not in MANUAL_HIDDEN_SOURCES

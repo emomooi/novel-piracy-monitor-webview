@@ -1,8 +1,8 @@
 import random
-import time
 from urllib.parse import quote
 
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class SogouMobileEngine(BaseEngine):
@@ -10,6 +10,7 @@ class SogouMobileEngine(BaseEngine):
     SOURCE_LABEL = '搜狗移动'
     SEARCH_URL = 'https://m.sogou.com/web/searchList.jsp?keyword={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
+    RANDOM_WAIT_RANGE = (2, 4)
 
     def fetch(self, context, term, page_num=0, book_kw=''):
         page = None
@@ -18,7 +19,7 @@ class SogouMobileEngine(BaseEngine):
             url = f"https://m.sogou.com/web/searchList.jsp?keyword={quote(term)}"
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(2, 4))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             # ★ 第 2 页及以后：找到「下一页」按钮并点击
             for _ in range(page_num):
@@ -159,5 +160,6 @@ class SogouMobileEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭搜狗移动搜索页面失败", exc)
                 pass

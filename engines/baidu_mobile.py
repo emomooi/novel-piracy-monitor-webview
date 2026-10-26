@@ -9,14 +9,12 @@
 常规模式搜手机版，深度模式再加搜 PC 版（见 config.SOURCE_GROUPS）。
 """
 import json
-import random
 import re
-import time
 from urllib.parse import quote, unquote, urlparse
 
 from config import BLOCKED_DOMAINS, BASE_DIR
 from engines.base import BaseEngine
-from utils import title_or_summary_matches
+from utils import log_suppressed_error, title_or_summary_matches
 
 
 class BaiduMobileEngine(BaseEngine):
@@ -24,6 +22,11 @@ class BaiduMobileEngine(BaseEngine):
     SOURCE_LABEL = '百度m'
     SEARCH_URL = 'https://m.baidu.com/s?word={kw}'
     EXTRA_URL = 'https://newcopyright.baidu.com/'
+    RANDOM_WAIT_RANGE = (3, 5)
+
+    def _build_search_url(self, term, page_num):
+        offset = self.page_offset(page_num, 10, 0)
+        return f"https://m.baidu.com/s?word={quote(term)}&pn={offset}"
 
     # 风控/验证码特征
     CAPTCHA_URL_TOKENS = ('wappass', 'verify', 'captcha', '/punish', 'sec-bot')
@@ -42,7 +45,8 @@ class BaiduMobileEngine(BaseEngine):
             if isinstance(extra, str):
                 extra = json.loads(extra)
             val = (extra or {}).get('url') or ''
-        except Exception:
+        except Exception as exc:
+            log_suppressed_error("百度移动卡片跳转信息解析失败，尝试正则兜底", exc)
             m = re.search(r'url[^"]{0,40}?((?:https?%3A|https%253A)[^"\\]+)', raw)
             val = m.group(1) if m else ''
         if not val:
@@ -58,10 +62,10 @@ class BaiduMobileEngine(BaseEngine):
         results = []
         page = None
         try:
-            url = f"https://m.baidu.com/s?word={quote(term)}&pn={page_num * 10}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(3, 5))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '')
@@ -71,7 +75,8 @@ class BaiduMobileEngine(BaseEngine):
                 try:
                     cards = page.evaluate(
                         "() => document.querySelectorAll('div.c-result, div.result').length")
-                except Exception:
+                except Exception as exc:
+                    log_suppressed_error("百度移动验证码卡片检查失败", exc)
                     cards = 0
                 captcha_hit = not cards
             if captcha_hit:
@@ -199,10 +204,11 @@ class BaiduMobileEngine(BaseEngine):
                             host = host[4:]
                         if host and 'baidu.com' not in host:
                             author = host
-                    except Exception:
+                    except Exception as exc:
+                        log_suppressed_error("百度移动结果作者域名解析失败", exc)
                         pass
 
-                is_white = bool(raw_url and raw_url in self.app.whitelist_common)
+                is_white = bool(raw_url and self.app.is_whitelisted(raw_url))
                 results.append(self.normalize_result(
                     source=self.SOURCE_ID,
                     title=title_text,
@@ -224,5 +230,6 @@ class BaiduMobileEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭百度移动搜索页面失败", exc)
                 pass

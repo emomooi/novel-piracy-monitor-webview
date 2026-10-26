@@ -3,6 +3,7 @@ import time
 from urllib.parse import quote
 
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class WeiboMobileEngine(BaseEngine):
@@ -27,7 +28,8 @@ class WeiboMobileEngine(BaseEngine):
             from datetime import datetime
             dt = datetime.strptime(str(raw).strip(), '%a %b %d %H:%M:%S %z %Y')
             return dt.strftime('%Y-%m-%d %H:%M')
-        except Exception:
+        except Exception as exc:
+            log_suppressed_error("微博移动日期解析失败，保留原日期文本", exc)
             return str(raw).strip()
 
     @staticmethod
@@ -128,7 +130,8 @@ class WeiboMobileEngine(BaseEngine):
                 page.wait_for_url(
                     lambda u: 'm.weibo.cn' in (u or '') and 'passport' not in (u or ''),
                     timeout=12000)
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("微博移动搜索页等待跳转失败", exc)
                 pass
             time.sleep(2)
             return page
@@ -137,7 +140,8 @@ class WeiboMobileEngine(BaseEngine):
             try:
                 if page:
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("微博移动打开搜索页失败后关闭页面失败", exc)
                 pass
             return None
 
@@ -198,7 +202,8 @@ class WeiboMobileEngine(BaseEngine):
                 try:
                     if page and not getattr(self.app, 'keep_page', False):
                         page.close()
-                except Exception:
+                except Exception as exc:
+                    log_suppressed_error("微博移动中间页面关闭失败", exc)
                     pass
 
             # 长词 0 条 → 用书名重搜（微博实时对「书名+后缀」经常 0 条）
@@ -242,5 +247,6 @@ class WeiboMobileEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭微博移动搜索页面失败", exc)
                 pass

@@ -1,8 +1,7 @@
-import random
-import time
 from urllib.parse import quote
 
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class So360MobileEngine(BaseEngine):
@@ -10,14 +9,19 @@ class So360MobileEngine(BaseEngine):
     SOURCE_LABEL = '360移动'
     SEARCH_URL = 'https://m.so.com/s?q={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
+    RANDOM_WAIT_RANGE = (2, 4)
+
+    def _build_search_url(self, term, page_num):
+        offset = self.page_offset(page_num, 10, 0)
+        return f"https://m.so.com/s?q={quote(term)}&pn={offset}"
 
     def fetch(self, context, term, page_num=0, book_kw=''):
         page = None
         try:
-            url = f"https://m.so.com/s?q={quote(term)}&pn={page_num * 10}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(2, 4))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '').lower()
@@ -132,5 +136,6 @@ class So360MobileEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭 360 移动搜索页面失败", exc)
                 pass

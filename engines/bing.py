@@ -1,9 +1,9 @@
 # engines/bing.py
 import time
-import random
 from urllib.parse import quote
 from config import BLOCKED_DOMAINS, BLOCKED_URL_TOKENS
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class BingEngine(BaseEngine):
@@ -11,9 +11,11 @@ class BingEngine(BaseEngine):
     SOURCE_LABEL = '必应'
     SEARCH_URL = 'https://cn.bing.com/search?q={kw}'
     EXTRA_URL = 'https://www.bing.com/webmaster/tools/contentremovalform'
+    RANDOM_WAIT_RANGE = (2, 4)
 
     def _build_search_url(self, term, page_num):
-        return f"https://www.bing.com/search?q={quote(term)}&first={page_num * 10 + 1}"
+        first = self.page_offset(page_num, 10, 1)
+        return f"https://www.bing.com/search?q={quote(term)}&first={first}"
 
     def fetch(self, context, term, page_num=0, book_kw=''):
         results = []
@@ -22,7 +24,7 @@ class BingEngine(BaseEngine):
             url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(2, 4))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or "").lower()
             body_text = (page.text_content('body') or '').lower()
@@ -97,11 +99,13 @@ class BingEngine(BaseEngine):
                 time.sleep(2)
                 try:
                     cur2 = (page.url or "").lower()
-                except Exception:
+                except Exception as exc:
+                    log_suppressed_error("必应验证码二次检测读取 URL 失败", exc)
                     cur2 = ""
                 try:
                     body2 = (page.text_content('body') or '').lower()
-                except Exception:
+                except Exception as exc:
+                    log_suppressed_error("必应验证码二次检测读取正文失败", exc)
                     body2 = ""
                 frame_text = ""
                 try:
@@ -111,9 +115,11 @@ class BingEngine(BaseEngine):
                         try:
                             ft = fr.text_content('body') or ''
                             frame_text += ' ' + ft.lower()
-                        except Exception:
+                        except Exception as exc:
+                            log_suppressed_error("必应验证码二次检测读取子框架正文失败", exc)
                             pass
-                except Exception:
+                except Exception as exc:
+                    log_suppressed_error("必应验证码二次检测遍历子框架失败", exc)
                     pass
                 full2 = body2 + ' ' + frame_text
                 hits2 = []
@@ -159,8 +165,6 @@ class BingEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭必应搜索页面失败", exc)
                 pass
-
-
-

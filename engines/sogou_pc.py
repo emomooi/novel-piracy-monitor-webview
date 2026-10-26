@@ -1,8 +1,7 @@
-import random
-import time
 from urllib.parse import quote
 
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class SogouPCEngine(BaseEngine):
@@ -10,19 +9,25 @@ class SogouPCEngine(BaseEngine):
     SOURCE_LABEL = '搜狗PC'
     SEARCH_URL = 'https://www.sogou.com/web?query={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
+    RANDOM_WAIT_RANGE = (2, 4)
+
+    def _build_search_url(self, term, page_num):
+        page_no = self.page_offset(page_num, 1, 1)
+        return f"https://www.sogou.com/web?query={quote(term)}&page={page_no}"
 
     def fetch(self, context, term, page_num=0, book_kw=''):
         page = None
         try:
-            url = f"https://www.sogou.com/web?query={quote(term)}&page={page_num + 1}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             resp = page.goto(url, wait_until="domcontentloaded", timeout=20000)
-            time.sleep(random.uniform(2, 4))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or '').lower()
             try:
                 body_text = (page.text_content('body') or '').lower()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("搜狗搜索正文读取失败，按空正文继续", exc)
                 body_text = ''
 
             http_403 = (resp is not None and resp.status >= 400)
@@ -126,5 +131,6 @@ class SogouPCEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭搜狗搜索页面失败", exc)
                 pass
