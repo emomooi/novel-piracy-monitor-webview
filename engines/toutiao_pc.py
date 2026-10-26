@@ -1,5 +1,5 @@
 # engines/toutiao_pc.py
-"""头条网页端搜索（dvpf=pc）。
+"""头条网页端搜索。
 
 设计参照百度引擎：
 - 标题链接形如 https://sou.toutiao.com/search/jump?url=<encode>&aid=..&jtoken=..
@@ -21,7 +21,7 @@ from utils import log_suppressed_error
 class ToutiaoPCEngine(BaseEngine):
     SOURCE_ID = 'toutiao_pc'
     SOURCE_LABEL = '头条PC'
-    SEARCH_URL = 'https://so.toutiao.com/search?dvpf=pc&keyword={kw}'
+    SEARCH_URL = 'https://so.toutiao.com/search?keyword={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
     RANDOM_WAIT_RANGE = (4, 6)
 
@@ -31,8 +31,7 @@ class ToutiaoPCEngine(BaseEngine):
     def _build_search_url(self, term, page_num):
         normalized_page = max(0, int(page_num or 0))
         offset = self.page_offset(normalized_page, 10, 0)
-        return (f"https://so.toutiao.com/search?dvpf=pc&source=input"
-                f"&keyword={quote(term)}&offset={offset}&enable_druid_v2=1")
+        return f"https://so.toutiao.com/search?keyword={quote(term)}&offset={offset}"
 
     @staticmethod
     def _decode_real_url(href):
@@ -50,7 +49,13 @@ class ToutiaoPCEngine(BaseEngine):
                 nxt = (parse_qs(u.query).get('url') or [''])[0]
                 if not nxt or nxt == href:
                     break
-                href = unquote(nxt)
+                target = unquote(nxt)
+                target_query = parse_qs(urlparse(target).query)
+                if target_query.get('h5_url'):
+                    from engines.toutiao_mobile import ToutiaoMobileEngine
+
+                    return ToutiaoMobileEngine._extract_real_url(href)
+                href = target
             except Exception as exc:
                 log_suppressed_error("头条跳转 URL 解析失败，保留当前链接", exc)
                 break
@@ -128,7 +133,9 @@ class ToutiaoPCEngine(BaseEngine):
                         if (!a) return;
                         const title = (a.innerText || a.textContent || '').replace(/\s+/g, ' ').trim();
                         if (!title || title.length < 4) return;
-                        const href = (a.getAttribute('href') || '').trim();
+                        let href = (a.getAttribute('href') || '').trim();
+                        if (href.startsWith('//')) href = 'https:' + href;
+                        else if (href.startsWith('/')) href = 'https://so.toutiao.com' + href;
                         if (!href.startsWith('http')) return;
                         let summary = txt.split(title).join(' ').replace(/\s+/g, ' ').trim();
                         if (summary.length > 500) summary = summary.substring(0, 500);

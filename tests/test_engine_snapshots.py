@@ -70,10 +70,10 @@ URL_SNAPSHOTS = {
         "https://www.bing.com/search?q=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&first=9991",
     ),
     ToutiaoPCEngine: (
-        "https://so.toutiao.com/search?dvpf=pc&source=input&keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=0&enable_druid_v2=1",
-        "https://so.toutiao.com/search?dvpf=pc&source=input&keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=10&enable_druid_v2=1",
-        "https://so.toutiao.com/search?dvpf=pc&source=input&keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=20&enable_druid_v2=1",
-        "https://so.toutiao.com/search?dvpf=pc&source=input&keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=9990&enable_druid_v2=1",
+        "https://so.toutiao.com/search?keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=0",
+        "https://so.toutiao.com/search?keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=10",
+        "https://so.toutiao.com/search?keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=20",
+        "https://so.toutiao.com/search?keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=9990",
     ),
     ToutiaoMobileEngine: (
         "https://so.toutiao.com/search?keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=0",
@@ -185,6 +185,35 @@ class EngineSnapshotTests(unittest.TestCase):
     def test_main_quark_source_uses_www_quark_cn(self):
         quark_cn_engine = ENGINE_MAP["quark_cn"]
         self.assertEqual(urlsplit(quark_cn_engine.SEARCH_URL).hostname, "www.quark.cn")
+
+    def test_toutiao_pc_url_uses_only_keyword_and_offset(self):
+        engine = ToutiaoPCEngine(None)
+
+        for page_num, expected_offset in ((0, 0), (1, 10), (2, 20)):
+            with self.subTest(page_num=page_num):
+                url = engine._build_search_url(TERM, page_num)
+                self.assertNotIn("dvpf", url)
+                self.assertNotIn("source", url)
+                self.assertNotIn("enable_druid_v2", url)
+                self.assertTrue(url.endswith(f"&offset={expected_offset}"))
+
+    def test_toutiao_pc_decodes_relative_jump_to_h5_url(self):
+        from urllib.parse import quote
+
+        real_url = "https://m.qidian.com/bookrecommend/12345"
+        middle_url = (
+            "https://article.zlink.toutiao.com/J4dQM?h5_url="
+            + quote(real_url, safe="")
+        )
+        jump_url = (
+            "https://so.toutiao.com/search/jump?aid=1455&jtoken=token&url="
+            + quote(middle_url, safe="")
+        )
+
+        self.assertEqual(
+            ToutiaoPCEngine._decode_real_url(jump_url),
+            real_url,
+        )
 
 
 if __name__ == "__main__":
