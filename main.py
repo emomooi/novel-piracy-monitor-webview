@@ -28,7 +28,14 @@ except ImportError as exc:
 import webview
 from playwright.sync_api import sync_playwright
 
-from config import SOURCE_GROUPS, BLOCKED_DOMAINS, BLOCKED_URL_TOKENS, ALLOWED_URL_PREFIXES, WHITELIST_COMMON_FILE
+from config import (
+    SOURCE_GROUPS,
+    SRC_LABEL as SOURCE_LABELS,
+    BLOCKED_DOMAINS,
+    BLOCKED_URL_TOKENS,
+    ALLOWED_URL_PREFIXES,
+    WHITELIST_COMMON_FILE,
+)
 from engines import ENGINE_MAP
 from utils import title_or_summary_matches, save_json, migrate_old_files
 
@@ -398,26 +405,6 @@ CAPTCHA_WAIT_SECONDS = 600
 
 # 同一页验证码处理完最多重试几次：防止用户没真过验证时无限弹窗
 MAX_CAPTCHA_RETRY = 3
-
-# 来源勾选框的 value（引擎组 id）→ 中文名，日志里显示用
-SOURCE_LABELS = {
-    "quark_cn": "夸克",
-    "baidu": "百度",
-    "baidu_mobile": "百度移动版",
-    "zhidao": "知道",
-    "zhidao_mobile": "知道移动版",
-    "tieba": "贴吧",
-    "bing": "必应",
-    "toutiao_pc": "头条",
-    "toutiao_mobile": "头条移动版",
-    "sogou_pc": "搜狗",
-    "sogou_mobile": "搜狗移动版",
-    "so360_pc": "360",
-    "so360_mobile": "360移动版",
-    "sogou_weixin": "微信",
-    "weibo_mobile": "微博",
-}
-
 
 def classify_source(label, r):
     """按 URL 把结果归到更精确的来源（知道 / 贴吧 / 微信 / 文心），否则用原标签。

@@ -64,6 +64,13 @@ WORKING_SRC_ORDER = [
 ]
 SRC_ORDER = WORKING_SRC_ORDER
 
+# 主程序可用引擎映射顺序（包含手动搜索额外使用的微博桌面版）
+MAIN_ENGINE_ORDER = [
+    'quark_cn', 'baidu_mobile', 'baidu', 'zhidao_mobile', 'zhidao', 'tieba', 'bing',
+    'so360_mobile', 'so360_pc', 'toutiao_mobile', 'toutiao_pc',
+    'sogou_mobile', 'sogou_pc', 'sogou_weixin', 'weibo', 'weibo_mobile',
+]
+
 # 界面上的来源勾选框（顺序 = 勾选框顺序）：一个勾选框 = 一个来源组
 VISIBLE_SRC_ORDER = [
     'quark_cn',
