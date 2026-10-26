@@ -4,7 +4,7 @@ __pycache__/
 *.pyo
 build/
 dist/
-*.spec
+
 
 # 运行时数据（用户本地数据，不进 git）
 baidu_engine_data/
