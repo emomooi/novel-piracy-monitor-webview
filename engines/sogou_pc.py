@@ -10,6 +10,11 @@ class SogouPCEngine(BaseEngine):
     SEARCH_URL = 'https://www.sogou.com/web?query={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
     RANDOM_WAIT_RANGE = (2, 4)
+    CAPTCHA_URL_TOKENS = ('captcha', 'verify', 'antispider')
+    CAPTCHA_TEXT_TOKENS = (
+        '验证码', '人机验证', '访问过于频繁',
+        '403 forbidden', 'forbidden', '反爬',
+    )
 
     def _build_search_url(self, term, page_num):
         page_no = self.page_offset(page_num, 1, 1)
@@ -33,11 +38,15 @@ class SogouPCEngine(BaseEngine):
                 body_text = ''
 
             http_403 = (resp is not None and resp.status >= 400)
-            hit_captcha = any(k in cur for k in ('captcha', 'verify', 'antispider'))
-            hit_body = any(k in body_text for k in (
-                '验证码', '人机验证', '访问过于频繁',
-                '403 forbidden', 'forbidden', '反爬',
-            ))
+            captcha_features = self.detect_captcha(
+                page,
+                url_tokens=self.CAPTCHA_URL_TOKENS,
+                text_tokens=self.CAPTCHA_TEXT_TOKENS,
+                url_text=cur,
+                body_text=body_text,
+            )
+            hit_captcha = any(kind == "url" for kind, _ in captcha_features)
+            hit_body = any(kind == "text" for kind, _ in captcha_features)
             if http_403 or hit_captcha or hit_body:
                 status_str = resp.status if resp else '?'
                 # ★ 不关页面：有头模式下把验证页留给用户手动处理

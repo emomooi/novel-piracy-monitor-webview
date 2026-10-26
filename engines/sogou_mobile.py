@@ -11,6 +11,8 @@ class SogouMobileEngine(BaseEngine):
     SEARCH_URL = 'https://m.sogou.com/web/searchList.jsp?keyword={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
     RANDOM_WAIT_RANGE = (2, 4)
+    CAPTCHA_URL_TOKENS = ('captcha', 'verify', 'antispider')
+    CAPTCHA_TEXT_TOKENS = ('验证码', '人机验证')
 
     def fetch(self, context, term, page_num=0, book_kw=''):
         page = None
@@ -39,8 +41,13 @@ class SogouMobileEngine(BaseEngine):
             # ---- 验证码检测 ----
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '').lower()
-            if ('captcha' in cur or 'verify' in cur or 'antispider' in cur
-                    or '验证码' in body_text or '人机验证' in body_text):
+            if self.detect_captcha(
+                page,
+                url_tokens=self.CAPTCHA_URL_TOKENS,
+                text_tokens=self.CAPTCHA_TEXT_TOKENS,
+                url_text=cur,
+                body_text=body_text,
+            ):
                 self.app._last_fetch_raw_count = 0
                 self.pause_for_user('搜狗移动搜索要求验证码/登录')
                 return []

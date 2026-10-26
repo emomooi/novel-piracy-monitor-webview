@@ -15,6 +15,7 @@ function between(start, end) {
 }
 
 const source = [
+  between('function getDataset(element) {', '  /* 「复制链接」'),
   between('function getAllRows() {', '  /* ==================== 框选状态'),
   between('function parseDateKey(dateStr) {', '  /* 白名单行沉底 +'),
   between('function compareRowsByDisplayOrder(a, b) {', '  /* 白名单行沉底 +'),
@@ -245,6 +246,33 @@ function makeRows() {
   return rows;
 }
 
+function testMissingDatasetGuards() {
+  const environment = makeEnvironment(true);
+  const collected = JSON.parse(JSON.stringify(
+    environment.context.collectRowItems([
+      null,
+      {},
+      { dataset: { url: ' https://example.test/item ', keyword: '词', srcId: 'baidu' } },
+    ]),
+  ));
+  assert.deepEqual(collected, [
+    { url: '', keyword: '', srcId: '' },
+    { url: '', keyword: '', srcId: '' },
+    { url: 'https://example.test/item', keyword: '词', srcId: 'baidu' },
+  ]);
+
+  environment.context._currentTabFilter = '全部';
+  environment.context._searchBoxFilter = '';
+  const rowWithoutDataset = { style: {} };
+  environment.context.applyFilterToRow(rowWithoutDataset);
+  assert.equal(rowWithoutDataset.style.display, '');
+  assert.equal(
+    environment.context.compareRowsByDisplayOrder({}, {}),
+    0,
+  );
+  assert.equal(environment.context.compareRowsByDisplayOrder(null, {}), 1);
+}
+
 function snapshot(tbody) {
   return tbody.children.map((row) => ({
     dataset: { ...row.dataset },
@@ -318,6 +346,7 @@ async function testHistoryWhitelistRows() {
 }
 
 const records = makeRows();
+testMissingDatasetGuards();
 const baseline = makeEnvironment(false);
 const optimized = makeEnvironment(true);
 records.forEach((record) => {

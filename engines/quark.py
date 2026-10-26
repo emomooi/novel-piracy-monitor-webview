@@ -9,7 +9,7 @@
 
 from urllib.parse import quote, urlparse, parse_qs, unquote
 
-from config import BLOCKED_DOMAINS
+from config import BLOCKED_DOMAINS, QUARK_ENTRYPOINTS
 from engines.base import BaseEngine
 from utils import log_suppressed_error
 
@@ -17,9 +17,10 @@ from utils import log_suppressed_error
 class QuarkEngine(BaseEngine):
     SOURCE_ID = 'quark'
     SOURCE_LABEL = '夸克'
-    SEARCH_URL = 'https://quark.sm.cn/s?q={kw}'
+    ENTRYPOINT = QUARK_ENTRYPOINTS[SOURCE_ID]
+    SEARCH_URL = ENTRYPOINT['search_url']
     FETCH_URL = ''                      # 实际抓取网址；留空就用上面的 SEARCH_URL
-    HOME_BASE = 'https://quark.sm.cn'   # 补全相对链接用（子类改成自己的域名）
+    HOME_BASE = ENTRYPOINT['home_base']
     EXTRA_URL = 'https://ipp.quark.cn/#/home'
     RANDOM_WAIT_RANGE = (3, 5)
 
@@ -114,9 +115,14 @@ class QuarkEngine(BaseEngine):
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '')
             title_now = (page.title() or '')
-            if (any(tok in cur for tok in self.CAPTCHA_URL_TOKENS)
-                    or any(tok in body_text for tok in self.CAPTCHA_TEXT_TOKENS)
-                    or any(tok in title_now for tok in self.CAPTCHA_TEXT_TOKENS)):
+            captcha_features = self.detect_captcha(
+                page,
+                url_tokens=self.CAPTCHA_URL_TOKENS,
+                text_tokens=self.CAPTCHA_TEXT_TOKENS,
+                url_text=cur,
+                body_text=body_text + " " + title_now,
+            )
+            if captcha_features:
                 # ★ 不关页面：有头模式下留给用户手动过验证
                 self.app._last_fetch_raw_count = 0
                 self.pause_for_user('夸克要求验证码/登录')

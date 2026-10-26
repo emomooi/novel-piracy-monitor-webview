@@ -10,6 +10,8 @@ class ToutiaoMobileEngine(BaseEngine):
     SEARCH_URL = 'https://m.toutiao.com/search?keyword={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
     RANDOM_WAIT_RANGE = (2, 4)
+    CAPTCHA_URL_TOKENS = ('captcha', 'verify', 'security')
+    CAPTCHA_TEXT_TOKENS = ('人机验证',)
 
     def _build_search_url(self, term, page_num):
         normalized_page = max(0, int(page_num or 0))
@@ -64,7 +66,13 @@ class ToutiaoMobileEngine(BaseEngine):
 
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '').lower()
-            if 'captcha' in cur or 'verify' in cur or 'security' in cur or '人机验证' in body_text:
+            if self.detect_captcha(
+                page,
+                url_tokens=self.CAPTCHA_URL_TOKENS,
+                text_tokens=self.CAPTCHA_TEXT_TOKENS,
+                url_text=cur,
+                body_text=body_text,
+            ):
                 # ★ 不关页面：有头模式下把验证页留给用户手动处理
                 self.pause_for_user('头条搜索要求验证码/登录')
                 return []

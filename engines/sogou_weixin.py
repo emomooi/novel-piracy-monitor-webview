@@ -11,6 +11,12 @@ class SogouWeixinEngine(BaseEngine):
     SEARCH_URL = 'https://weixin.sogou.com/weixin?type=2&query={kw}'
     EXTRA_URL = 'https://mp.weixin.qq.com/'
     RANDOM_WAIT_RANGE = (2, 4)
+    JUMP_CAPTCHA_URL_TOKENS = ('antispider', 'verify', 'captcha')
+    JUMP_CAPTCHA_TEXT_TOKENS = (
+        'verifycode', '请输入验证码', '人机验证',
+    )
+    SEARCH_CAPTCHA_URL_TOKENS = ('captcha', 'verify')
+    SEARCH_CAPTCHA_TEXT_TOKENS = ('验证码', '人机验证')
 
     def _build_search_url(self, term, page_num):
         page_no = self.page_offset(page_num, 1, 1)
@@ -90,14 +96,13 @@ class SogouWeixinEngine(BaseEngine):
             except Exception as exc:
                 log_suppressed_error("搜狗微信验证码页正文读取失败，按空正文继续", exc)
                 body = ''
-            hit_captcha = (
-                'antispider' in cur
-                or 'verify' in cur
-                or 'captcha' in cur
-                or 'verifycode' in body
-                or '请输入验证码' in body
-                or '人机验证' in body
-            )
+            hit_captcha = bool(self.detect_captcha(
+                page,
+                url_tokens=self.JUMP_CAPTCHA_URL_TOKENS,
+                text_tokens=self.JUMP_CAPTCHA_TEXT_TOKENS,
+                url_text=cur,
+                body_text=body,
+            ))
             if hit_captcha:
                 # 保留页面，等用户处理
                 self.pause_for_user('搜狗微信跳转壳要求验证码，请在打开的页面完成验证')
@@ -152,7 +157,13 @@ class SogouWeixinEngine(BaseEngine):
 
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '').lower()
-            if 'captcha' in cur or 'verify' in cur or '验证码' in body_text or '人机验证' in body_text:
+            if self.detect_captcha(
+                page,
+                url_tokens=self.SEARCH_CAPTCHA_URL_TOKENS,
+                text_tokens=self.SEARCH_CAPTCHA_TEXT_TOKENS,
+                url_text=cur,
+                body_text=body_text,
+            ):
                 self.pause_for_user('搜狗微信搜索要求验证码/登录')
                 return []
 

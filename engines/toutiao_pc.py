@@ -69,45 +69,37 @@ class ToutiaoPCEngine(BaseEngine):
         '拖动完成', '拖动滑块', '按住左边按钮拖动',
         '拼图', '请依次点击', '请按顺序点击',
     )
+    CAPTCHA_URL_TOKENS = ('captcha', 'verify', 'challenge', 'secsdk')
+    CAPTCHA_DOM_SELECTORS = (
+        '.captcha', '#captcha',
+        '.captcha-verify', '#captcha-verify',
+        '.secsdk-captcha', '.verify-wrap',
+        '.captcha_verify_container',
+        '.vc-container', '.verify-bar',
+        'iframe[src*="captcha"]', 'iframe[src*="verify"]',
+    )
 
     def _has_captcha(self, page):
         """判断页面是否弹了验证码：URL / 正文文案 / 弹窗 DOM，任一命中即为真。"""
         # 1) URL 特征
         try:
-            cur = (page.url or '').lower()
-            if any(k in cur for k in ('captcha', 'verify', 'challenge', 'secsdk')):
+            if self.detect_captcha(page, url_tokens=self.CAPTCHA_URL_TOKENS):
                 return True
         except Exception as exc:
             log_suppressed_error("头条验证码检测读取 URL 失败", exc)
             pass
         # 2) 正文关键词（截图里那种"请完成下列验证后继续"就靠这里命中）
         try:
-            body_text = page.text_content('body') or ''
-            if any(k in body_text for k in self.CAPTCHA_TEXTS):
+            if self.detect_captcha(page, text_tokens=self.CAPTCHA_TEXTS):
                 return True
         except Exception as exc:
             log_suppressed_error("头条验证码检测读取正文失败", exc)
             pass
-        # 3) 弹窗 DOM（头条验证码一般是浮层容器 + 拼图/滑块）
+        # 3) 弹窗 DOM
         try:
-            hit = page.evaluate(r"""
-                () => {
-                    const sels = [
-                        '.captcha', '#captcha',
-                        '.captcha-verify', '#captcha-verify',
-                        '.secsdk-captcha', '.verify-wrap',
-                        '.captcha_verify_container',
-                        '.vc-container', '.verify-bar',
-                        'iframe[src*="captcha"]', 'iframe[src*="verify"]',
-                    ];
-                    for (const s of sels) {
-                        const el = document.querySelector(s);
-                        if (el && el.offsetParent !== null) return true;
-                    }
-                    return false;
-                }
-            """)
-            if hit:
+            if self.detect_captcha(
+                page, dom_selectors=self.CAPTCHA_DOM_SELECTORS
+            ):
                 return True
         except Exception as exc:
             log_suppressed_error("头条验证码检测读取弹窗 DOM 失败", exc)

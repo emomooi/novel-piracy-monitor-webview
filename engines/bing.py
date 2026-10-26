@@ -12,6 +12,15 @@ class BingEngine(BaseEngine):
     SEARCH_URL = 'https://cn.bing.com/search?q={kw}'
     EXTRA_URL = 'https://www.bing.com/webmaster/tools/contentremovalform'
     RANDOM_WAIT_RANGE = (2, 4)
+    CAPTCHA_URL_TOKENS = ('captcha', 'verify', 'security', 'challenge')
+    CAPTCHA_TEXT_TOKENS = (
+        '请解决以下难题', '请验证', '安全验证', '人机验证',
+        'verify you are human', 'unusual traffic',
+    )
+    CAPTCHA_SECOND_TEXT_TOKENS = (
+        '请解决以下难题', '请验证', '安全验证', '人机验证',
+        '最后一步', '正在验证', 'verify you are human', 'unusual traffic',
+    )
 
     def _build_search_url(self, term, page_num):
         first = self.page_offset(page_num, 10, 1)
@@ -31,14 +40,22 @@ class BingEngine(BaseEngine):
             cur = (page.url or "").lower()
             body_text = (page.text_content('body') or '').lower()
 
-            # ★ 放宽检测条件 + 无论后台/前台都先 log 一句
             hits = []
-            if any(tok in cur for tok in ('captcha', 'verify', 'security', 'challenge')):
+            detected = self.detect_captcha(
+                page,
+                url_tokens=self.CAPTCHA_URL_TOKENS,
+                text_tokens=self.CAPTCHA_TEXT_TOKENS,
+                url_text=cur,
+                body_text=body_text,
+            )
+            if any(kind == "url" for kind, _ in detected):
                 hits.append(f"url={cur[:80]}")
-            for kw in ('请解决以下难题', '请验证', '安全验证', '人机验证', 'verify you are human', 'unusual traffic'):
-                if kw in body_text:
-                    hits.append(f"body含「{kw}」")
-                    break
+            text_hit = next(
+                (feature for kind, feature in detected if kind == "text"),
+                None,
+            )
+            if text_hit:
+                hits.append(f"body含「{text_hit}」")
 
             if hits:
                 self.log(f"  [必应] 检测到验证码/安全验证（{'；'.join(hits)}）")
@@ -125,13 +142,21 @@ class BingEngine(BaseEngine):
                     pass
                 full2 = body2 + ' ' + frame_text
                 hits2 = []
-                if any(tok in cur2 for tok in ('captcha', 'verify', 'security', 'challenge')):
+                detected2 = self.detect_captcha(
+                    page,
+                    url_tokens=self.CAPTCHA_URL_TOKENS,
+                    text_tokens=self.CAPTCHA_SECOND_TEXT_TOKENS,
+                    url_text=cur2,
+                    body_text=full2,
+                )
+                if any(kind == "url" for kind, _ in detected2):
                     hits2.append(f"url={cur2[:80]}")
-                for kw in ('请解决以下难题', '请验证', '安全验证', '人机验证',
-                           '最后一步', '正在验证', 'verify you are human', 'unusual traffic'):
-                    if kw in full2:
-                        hits2.append(f"含「{kw}」")
-                        break
+                text_hit2 = next(
+                    (feature for kind, feature in detected2 if kind == "text"),
+                    None,
+                )
+                if text_hit2:
+                    hits2.append(f"含「{text_hit2}」")
                 if hits2:
                     self.log(f"  [必应] 二次检测到验证（{'；'.join(hits2)}）")
                     self.pause_for_user("必应搜索要求验证码/安全验证")

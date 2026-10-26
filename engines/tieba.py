@@ -9,6 +9,7 @@ class TiebaEngine(BaseEngine):
     SOURCE_LABEL = '百度贴吧'
     SEARCH_URL = 'https://tieba.baidu.com/f/search/res?ie=utf-8&qw={kw}'
     EXTRA_URL = 'https://newcopyright.baidu.com/'
+    CAPTCHA_URL_TOKENS = ("wappass", "verify", "captcha", "passport")
 
     def _build_search_url(self, term, page_num):
         page_no = self.page_offset(page_num, 1, 0)
@@ -24,8 +25,7 @@ class TiebaEngine(BaseEngine):
                 return []
             time.sleep(4)
 
-            cur = (page.url or "").lower()
-            if "wappass" in cur or "verify" in cur or "captcha" in cur or "passport" in cur:
+            if self.detect_captcha(page, url_tokens=self.CAPTCHA_URL_TOKENS):
                 self.pause_for_user("百度贴吧要求验证码/登录")
                 return []
 

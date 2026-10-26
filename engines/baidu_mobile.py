@@ -71,16 +71,23 @@ class BaiduMobileEngine(BaseEngine):
 
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '')
-            captcha_hit = any(tok in cur for tok in self.CAPTCHA_URL_TOKENS)
-            if not captcha_hit and any(tok in body_text for tok in self.CAPTCHA_TEXT_TOKENS):
-                # 有结果卡片就说明页面是正常的（正常页面正文里偶尔也会出现「安全验证」字样）
+            def has_result_card():
                 try:
                     cards = page.evaluate(
                         "() => document.querySelectorAll('div.c-result, div.result').length")
                 except Exception as exc:
                     log_suppressed_error("百度移动验证码卡片检查失败", exc)
                     cards = 0
-                captcha_hit = not cards
+                return bool(cards)
+
+            captcha_hit = bool(self.detect_captcha(
+                page,
+                url_tokens=self.CAPTCHA_URL_TOKENS,
+                text_tokens=self.CAPTCHA_TEXT_TOKENS,
+                suppress_if=has_result_card,
+                url_text=cur,
+                body_text=body_text,
+            ))
             if captcha_hit:
                 # ★ 不关页面：有头模式下把验证页留给用户手动处理
                 self.app._last_fetch_raw_count = 0

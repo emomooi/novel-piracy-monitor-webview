@@ -35,6 +35,7 @@ from config import (
     BLOCKED_URL_TOKENS,
     ALLOWED_URL_PREFIXES,
     WHITELIST_COMMON_FILE,
+    QUARK_ENTRYPOINTS,
 )
 from engines import ENGINE_MAP
 from utils import title_or_summary_matches, save_json, migrate_old_files
@@ -907,6 +908,14 @@ class Api:
             self.push_log(f"[提示] 打开链接失败：{exc}")
             return "error"
         return "ok"
+
+    def open_manual_quark_search(self, source_id, encoded_keyword):
+        """按集中配置打开夸克手动搜索地址；keyword 已由前端编码。"""
+        entry = QUARK_ENTRYPOINTS.get(str(source_id or ""))
+        base_url = entry.get("manual_search_url") if entry else None
+        if not base_url:
+            return "empty"
+        return self.open_url(base_url + str(encoded_keyword or ""))
 
     # ==================== 搜索（真跑 Playwright + 多引擎 + 多页） ====================
     def start_search(self, tasks, sources, pages):

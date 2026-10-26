@@ -4,7 +4,8 @@ import unittest
 from urllib.parse import urlsplit
 from unittest.mock import call, patch
 
-from engines import ENGINE_MAP
+from config import QUARK_ENTRYPOINTS
+from engines import ALL_ENGINE_MAP, ENGINE_MAP
 from engines.baidu import BaiduEngine
 from engines.baidu_mobile import BaiduMobileEngine
 from engines.bing import BingEngine
@@ -20,6 +21,7 @@ from engines.toutiao_pc import ToutiaoPCEngine
 from engines.weibo import WeiboEngine
 from engines.zhidao import ZhidaoEngine
 from engines.zhidao_mobile import ZhidaoMobileEngine
+import main
 
 
 TERM = "星河 书名"
@@ -185,6 +187,39 @@ class EngineSnapshotTests(unittest.TestCase):
     def test_main_quark_source_uses_www_quark_cn(self):
         quark_cn_engine = ENGINE_MAP["quark_cn"]
         self.assertEqual(urlsplit(quark_cn_engine.SEARCH_URL).hostname, "www.quark.cn")
+
+    def test_quark_entrypoint_address_snapshots(self):
+        self.assertEqual(
+            set(QUARK_ENTRYPOINTS),
+            {"quark", "quark_cn", "quark_m", "quark_so"},
+        )
+        for source_id, addresses in QUARK_ENTRYPOINTS.items():
+            with self.subTest(source=source_id):
+                engine = ALL_ENGINE_MAP[source_id](None)
+                self.assertEqual(engine.SEARCH_URL, addresses["search_url"])
+                self.assertEqual(engine.HOME_BASE, addresses["home_base"])
+                self.assertEqual(
+                    engine._build_search_url(TERM, 0),
+                    addresses["search_url"].format(
+                        kw="%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D"
+                    ) + "&offset=0",
+                )
+
+        self.assertEqual(
+            QUARK_ENTRYPOINTS["quark_cn"]["manual_search_url"],
+            "https://quark.sm.cn/s?q=",
+        )
+        self.assertIsNone(QUARK_ENTRYPOINTS["quark"]["manual_search_url"])
+
+    @patch("main.webbrowser.open")
+    def test_manual_quark_search_keeps_current_address(self, open_browser):
+        api = main.Api()
+        result = api.open_manual_quark_search("quark_cn", "%E6%98%9F%E6%B2%B3")
+
+        self.assertEqual(result, "ok")
+        open_browser.assert_called_once_with(
+            "https://quark.sm.cn/s?q=%E6%98%9F%E6%B2%B3"
+        )
 
     def test_toutiao_pc_url_uses_only_keyword_and_offset(self):
         engine = ToutiaoPCEngine(None)
