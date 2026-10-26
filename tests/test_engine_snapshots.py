@@ -72,10 +72,10 @@ URL_SNAPSHOTS = {
         "https://www.bing.com/search?q=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&first=9991",
     ),
     ToutiaoPCEngine: (
-        "https://so.toutiao.com/search?keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=0",
-        "https://so.toutiao.com/search?keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=10",
-        "https://so.toutiao.com/search?keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=20",
-        "https://so.toutiao.com/search?keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=9990",
+        "https://so.toutiao.com/search?dvpf=pc&source=input&keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=0&enable_druid_v2=1",
+        "https://so.toutiao.com/search?dvpf=pc&source=input&keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=10&enable_druid_v2=1",
+        "https://so.toutiao.com/search?dvpf=pc&source=input&keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=20&enable_druid_v2=1",
+        "https://so.toutiao.com/search?dvpf=pc&source=input&keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=9990&enable_druid_v2=1",
     ),
     ToutiaoMobileEngine: (
         "https://so.toutiao.com/search?keyword=%E6%98%9F%E6%B2%B3%20%E4%B9%A6%E5%90%8D&offset=0",
@@ -221,16 +221,26 @@ class EngineSnapshotTests(unittest.TestCase):
             "https://quark.sm.cn/s?q=%E6%98%9F%E6%B2%B3"
         )
 
-    def test_toutiao_pc_url_uses_only_keyword_and_offset(self):
+    def test_toutiao_pc_url_uses_pc_layout_parameters_and_offset(self):
         engine = ToutiaoPCEngine(None)
+        self.assertEqual(
+            engine.SEARCH_URL,
+            "https://so.toutiao.com/search?dvpf=pc&keyword={kw}",
+        )
 
         for page_num, expected_offset in ((0, 0), (1, 10), (2, 20)):
             with self.subTest(page_num=page_num):
                 url = engine._build_search_url(TERM, page_num)
-                self.assertNotIn("dvpf", url)
-                self.assertNotIn("source", url)
-                self.assertNotIn("enable_druid_v2", url)
-                self.assertTrue(url.endswith(f"&offset={expected_offset}"))
+                self.assertIn("dvpf=pc", url)
+                self.assertIn("source=input", url)
+                self.assertIn("enable_druid_v2=1", url)
+                self.assertIn(f"&offset={expected_offset}&", url)
+
+    def test_toutiao_pc_is_limited_to_one_page(self):
+        self.assertEqual(main._max_pages_for_engine("toutiao_pc", "auto"), 1)
+        self.assertEqual(main._max_pages_for_engine("toutiao_pc", 5), 1)
+        self.assertEqual(main._max_pages_for_engine("toutiao_mobile", "auto"), 10)
+        self.assertEqual(main._max_pages_for_engine("toutiao_mobile", 5), 5)
 
     def test_toutiao_pc_decodes_relative_jump_to_h5_url(self):
         from urllib.parse import quote

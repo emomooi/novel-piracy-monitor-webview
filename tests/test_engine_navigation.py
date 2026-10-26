@@ -18,36 +18,58 @@ class _FakePage:
         self,
         clock,
         succeed_after=None,
-        timeout_during_commit=False,
-        keep_initial_url=False,
+        response_after=0,
+        destroyed_context=False,
         url_change_after_waits=None,
     ):
         self.clock = clock
         self.succeed_after = succeed_after
-        self.timeout_during_commit = timeout_during_commit
-        self.keep_initial_url = keep_initial_url
+        self.response_after = response_after
+        self.destroyed_context = destroyed_context
         self.url_change_after_waits = url_change_after_waits
         self.goto_calls = []
+        self.evaluate_calls = []
         self.wait_calls = []
         self.url = "about:blank"
         self.main_frame = object()
         self.listeners = {}
         self.url_wait_count = 0
+        self.response_sent = False
+        self.response_at = None
 
     def on(self, event, callback):
-        self.listeners[event] = callback
+        self.listeners.setdefault(event, []).append(callback)
 
     def remove_listener(self, event, callback):
-        self.listeners.pop(event, None)
+        listeners = self.listeners.get(event, [])
+        if callback in listeners:
+            listeners.remove(callback)
 
-    def goto(self, url, **kwargs):
-        self.goto_calls.append((url, kwargs))
-        if self.timeout_during_commit:
-            self.clock.now += kwargs["timeout"] / 1000
-            raise PlaywrightTimeoutError("commit slice timed out")
-        if not self.keep_initial_url:
-            self.url = url
-        return "response"
+    def evaluate(self, script, url):
+        self.evaluate_calls.append((script, url))
+        self.response_at = (
+            None if self.response_after is None
+            else self.clock.now + self.response_after
+        )
+        self._emit_response_if_ready()
+        if self.destroyed_context:
+            raise RuntimeError("Execution context was destroyed")
+
+    def _emit_response_if_ready(self):
+        if (
+            self.response_sent
+            or self.response_at is None
+            or self.clock.now < self.response_at
+        ):
+            return
+        self.response_sent = True
+        request = mock.Mock()
+        request.is_navigation_request.return_value = True
+        request.frame = self.main_frame
+        response = mock.Mock()
+        response.request = request
+        for callback in self.listeners.get("response", []):
+            callback(response)
 
     def wait_for_url(self, predicate, timeout):
         self.wait_calls.append(("url", timeout))
@@ -63,7 +85,12 @@ class _FakePage:
 
     def wait_for_timeout(self, timeout):
         self.wait_calls.append(("timeout", timeout))
-        self.clock.now += timeout / 1000
+        end = self.clock.now + timeout / 1000
+        if self.response_at is not None and self.clock.now < self.response_at <= end:
+            self.clock.now = self.response_at
+        else:
+            self.clock.now = end
+        self._emit_response_if_ready()
 
     def wait_for_load_state(self, state, timeout):
         self.wait_calls.append((state, timeout))
@@ -107,14 +134,14 @@ class EngineNavigationTests(unittest.TestCase):
         self.assertTrue(engine.navigation_stopped)
         self.assertEqual(clock.now, 0.25)
         self.assertEqual(app.logs, ["用户停止，已中断页面导航"])
-        self.assertEqual(page.goto_calls[0][1]["wait_until"], "commit")
-        self.assertEqual(page.goto_calls[0][1]["timeout"], 250)
+        self.assertEqual(page.goto_calls, [])
+        self.assertEqual(page.evaluate_calls[0][1], "https://example.test")
         self.assertEqual(sum(timeout for _, timeout in page.wait_calls), 250)
 
-    def test_stop_during_commit_wait_returns_after_one_short_slice(self):
+    def test_stop_while_waiting_for_navigation_response_returns_after_one_slice(self):
         clock = _Clock()
         app = _FakeApp(clock, stop_at=0.25)
-        page = _FakePage(clock, timeout_during_commit=True)
+        page = _FakePage(clock, response_after=2)
         engine = BaseEngine(app)
 
         result = self._run_with_clock(engine, page, clock)
@@ -122,7 +149,7 @@ class EngineNavigationTests(unittest.TestCase):
         self.assertIsNone(result)
         self.assertTrue(engine.navigation_stopped)
         self.assertEqual(clock.now, 0.25)
-        self.assertEqual(page.goto_calls[0][1]["timeout"], 250)
+        self.assertEqual(page.goto_calls, [])
         self.assertEqual(app.logs, ["用户停止，已中断页面导航"])
 
     def test_stop_during_followup_url_wait_is_logged_without_error(self):
@@ -148,29 +175,29 @@ class EngineNavigationTests(unittest.TestCase):
 
         response = self._run_with_clock(engine, page, clock)
 
-        self.assertEqual(response, "response")
+        self.assertIsNotNone(response)
         self.assertFalse(engine.navigation_stopped)
         self.assertEqual(page.wait_calls[0], ("domcontentloaded", 250))
         self.assertEqual(clock.now, 0.4)
         self.assertEqual(app.logs, [])
 
-    def test_response_does_not_accept_old_document_load_state(self):
+    def test_load_state_without_main_frame_response_does_not_finish_navigation(self):
         clock = _Clock()
         app = _FakeApp(clock)
-        page = _FakePage(clock, keep_initial_url=True, succeed_after=0.0)
+        page = _FakePage(clock, response_after=None, succeed_after=0.0)
         engine = BaseEngine(app)
 
         with self.assertRaises(PlaywrightTimeoutError):
             self._run_with_clock(engine, page, clock, timeout=1000)
 
         self.assertEqual(clock.now, 1.0)
-        self.assertEqual(page.url_wait_count, 4)
+        self.assertEqual(page.url_wait_count, 0)
         self.assertFalse(any(state == "domcontentloaded" for state, _ in page.wait_calls))
 
     def test_response_and_load_state_suffice_when_target_is_current_url(self):
         clock = _Clock()
         app = _FakeApp(clock)
-        page = _FakePage(clock, keep_initial_url=True, succeed_after=0.0)
+        page = _FakePage(clock, succeed_after=0.0)
         engine = BaseEngine(app)
 
         with mock.patch("engines.base.time.monotonic", side_effect=lambda: clock.now):
@@ -178,30 +205,63 @@ class EngineNavigationTests(unittest.TestCase):
                 page, "about:blank", wait_until="domcontentloaded", timeout=1000
             )
 
-        self.assertEqual(response, "response")
+        self.assertIsNotNone(response)
         self.assertEqual(page.url_wait_count, 0)
         self.assertEqual(clock.now, 0.0)
 
-    def test_waits_for_url_change_before_loading_state_then_returns(self):
+    def test_response_and_load_state_succeed_without_page_url_change(self):
         clock = _Clock()
         app = _FakeApp(clock)
-        page = _FakePage(
-            clock,
-            keep_initial_url=True,
-            url_change_after_waits=2,
-            succeed_after=0.4,
-        )
+        page = _FakePage(clock, response_after=0.25, succeed_after=0.4)
         engine = BaseEngine(app)
 
         response = self._run_with_clock(engine, page, clock)
 
-        self.assertEqual(response, "response")
-        self.assertEqual(page.url_wait_count, 2)
+        self.assertIsNotNone(response)
+        self.assertEqual(page.url, "about:blank")
+        self.assertEqual(page.url_wait_count, 0)
         self.assertEqual(clock.now, 0.4)
         self.assertEqual(
             [state for state, _ in page.wait_calls if state == "domcontentloaded"],
             ["domcontentloaded"],
         )
+
+    def test_delayed_navigation_response_succeeds_without_page_url_change(self):
+        clock = _Clock()
+        app = _FakeApp(clock)
+        page = _FakePage(
+            clock,
+            response_after=2.0,
+            destroyed_context=True,
+            succeed_after=2.1,
+        )
+        engine = BaseEngine(app)
+
+        with mock.patch("engines.base.time.monotonic", side_effect=lambda: clock.now):
+            response = engine.goto_with_stop(
+                page,
+                "https://example.test",
+                wait_until="domcontentloaded",
+                timeout=5000,
+            )
+
+        self.assertIsNotNone(response)
+        self.assertFalse(engine.navigation_stopped)
+        self.assertEqual(page.url, "about:blank")
+        self.assertEqual(clock.now, 2.1)
+        self.assertLessEqual(max(timeout for _, timeout in page.wait_calls), 250)
+
+    def test_load_state_is_accepted_after_response_without_url_change(self):
+        clock = _Clock()
+        app = _FakeApp(clock)
+        page = _FakePage(clock, succeed_after=0.0)
+        engine = BaseEngine(app)
+
+        response = self._run_with_clock(engine, page, clock)
+
+        self.assertIsNotNone(response)
+        self.assertEqual(page.url, "about:blank")
+        self.assertEqual(clock.now, 0.0)
 
     def test_timeout_uses_original_budget_in_bounded_slices(self):
         clock = _Clock()
