@@ -1,7 +1,9 @@
 """通过各引擎真实 URL 构造方法锁定当前地址，不启动浏览器或访问网络。"""
 
 import unittest
+from urllib.parse import urlsplit
 
+from engines import ENGINE_MAP
 from engines.baidu import BaiduEngine
 from engines.baidu_mobile import BaiduMobileEngine
 from engines.bing import BingEngine
@@ -121,6 +123,10 @@ class EngineSnapshotTests(unittest.TestCase):
                             engine._build_search_url(TERM, page_num),
                             expected,
                         )
+
+    def test_main_quark_source_uses_quark_sm_cn(self):
+        quark_cn_engine = ENGINE_MAP["quark_cn"]
+        self.assertEqual(urlsplit(quark_cn_engine.SEARCH_URL).hostname, "quark.sm.cn")
 
 
 if __name__ == "__main__":
