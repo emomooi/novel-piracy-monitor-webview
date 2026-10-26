@@ -1,6 +1,7 @@
 from urllib.parse import quote
 
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class SogouPCEngine(BaseEngine):
@@ -25,7 +26,8 @@ class SogouPCEngine(BaseEngine):
             cur = (page.url or '').lower()
             try:
                 body_text = (page.text_content('body') or '').lower()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("搜狗搜索正文读取失败，按空正文继续", exc)
                 body_text = ''
 
             http_403 = (resp is not None and resp.status >= 400)
@@ -129,5 +131,6 @@ class SogouPCEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭搜狗搜索页面失败", exc)
                 pass

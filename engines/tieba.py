@@ -1,7 +1,7 @@
 # engines/tieba.py
 import time
 from urllib.parse import quote
-from utils import title_or_summary_matches
+from utils import log_suppressed_error, title_or_summary_matches
 from engines.base import BaseEngine
 
 class TiebaEngine(BaseEngine):
@@ -111,5 +111,6 @@ class TiebaEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭贴吧搜索页面失败", exc)
                 pass

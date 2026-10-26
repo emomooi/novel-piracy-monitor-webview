@@ -1,6 +1,7 @@
 from urllib.parse import quote
 
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class So360PCEngine(BaseEngine):
@@ -127,5 +128,6 @@ class So360PCEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭 360 搜索页面失败", exc)
                 pass

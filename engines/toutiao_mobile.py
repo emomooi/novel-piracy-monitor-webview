@@ -1,6 +1,7 @@
 from urllib.parse import quote, urlparse, parse_qs, unquote
 
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class ToutiaoMobileEngine(BaseEngine):
@@ -39,12 +40,14 @@ class ToutiaoMobileEngine(BaseEngine):
                         h5_url = (nested_qs.get('h5_url') or [''])[0]
                         if h5_url:
                             return unquote(h5_url).split('?')[0].split('#')[0]
-                    except Exception:
+                    except Exception as exc:
+                        log_suppressed_error("头条中间页链接解析失败，使用外层链接", exc)
                         pass
                     return target.split('?')[0].split('#')[0]
                 return ''
             return href.split('?')[0].split('#')[0]
-        except Exception:
+        except Exception as exc:
+            log_suppressed_error("头条链接解析失败，返回空链接", exc)
             return ''
 
     def fetch(self, context, term, page_num=0, book_kw=''):
@@ -173,5 +176,6 @@ class ToutiaoMobileEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭头条移动搜索页面失败", exc)
                 pass

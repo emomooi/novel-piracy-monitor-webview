@@ -5,18 +5,27 @@ import sys
 import tempfile
 from config import *
 
+def log_suppressed_error(context, error):
+    print(
+        f"[suppressed] {context}: {type(error).__name__}: {error}",
+        file=sys.stderr,
+    )
+
+
 try:
     from PIL import Image, ImageDraw
     HAS_TRAY = True
-except ImportError:
+except ImportError as exc:
     HAS_TRAY = False
+    log_suppressed_error("Pillow unavailable; tray icon support disabled", exc)
 
 def load_json(path, default):
     if os.path.exists(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception:
+        except Exception as exc:
+            log_suppressed_error(f"读取 JSON {path} 失败，使用默认值", exc)
             pass
     return default
 
@@ -31,7 +40,8 @@ def migrate_old_files(log_callback=None):
             try:
                 log_callback(message)
                 return
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("迁移日志回调失败，改用标准输出", exc)
                 pass
         print(message, file=sys.stderr if error else sys.stdout)
 
@@ -163,7 +173,8 @@ def generate_icon():
     try:
         if os.path.exists(ICON_FILE):
             return Image.open(ICON_FILE).copy()
-    except Exception:
+    except Exception as exc:
+        log_suppressed_error(f"读取图标 {ICON_FILE} 失败，使用绘制图标", exc)
         pass
     # 兜底：原来的手绘逻辑
     img = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
@@ -182,7 +193,8 @@ def ensure_ico():
     try:
         img.save(ICON_FILE, format='ICO', sizes=[(64, 64)])
         return ICON_FILE
-    except Exception:
+    except Exception as exc:
+        log_suppressed_error(f"保存图标 {ICON_FILE} 失败", exc)
         return None
 
 # ==================== 后缀数据结构 ====================
@@ -239,7 +251,8 @@ def fmt_hms(seconds):
     """秒数 → 小时:分钟:秒（如 01:23:45），用来显示「本轮用时」"""
     try:
         total = int(round(float(seconds or 0)))
-    except Exception:
+    except Exception as exc:
+        log_suppressed_error("格式化耗时失败，使用 0 秒", exc)
         total = 0
     if total < 0:
         total = 0
@@ -263,7 +276,8 @@ def normalize_date(date_str):
         try:
             y, m, d = int(nums[0]), int(nums[1]), int(nums[2])
             return f"{y}/{m:02d}/{d:02d}"
-        except Exception:
+        except Exception as exc:
+            log_suppressed_error("解析日期失败，返回未知日期", exc)
             pass
     return "未知"
 

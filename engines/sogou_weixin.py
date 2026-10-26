@@ -2,7 +2,7 @@ import re
 from urllib.parse import quote
 
 from engines.base import BaseEngine
-from utils import title_or_summary_matches
+from utils import log_suppressed_error, title_or_summary_matches
 
 
 class SogouWeixinEngine(BaseEngine):
@@ -83,7 +83,8 @@ class SogouWeixinEngine(BaseEngine):
             cur = (page.url or '').lower()
             try:
                 body = (page.content() or '').lower()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("搜狗微信验证码页正文读取失败，按空正文继续", exc)
                 body = ''
             hit_captcha = (
                 'antispider' in cur
@@ -101,7 +102,8 @@ class SogouWeixinEngine(BaseEngine):
             try:
                 page.wait_for_url(
                     lambda u: 'mp.weixin.qq.com' in (u or ''), timeout=6000)
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("搜狗微信跳转等待超时或失败", exc)
                 pass
 
             final = page.url or ''
@@ -127,7 +129,8 @@ class SogouWeixinEngine(BaseEngine):
                 # ★ 撞验证码时保留页面给用户处理
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭搜狗微信跳转页面失败", exc)
                 pass
 
     def fetch(self, context, term, page_num=0, book_kw=''):
@@ -254,5 +257,6 @@ class SogouWeixinEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭搜狗微信搜索页面失败", exc)
                 pass

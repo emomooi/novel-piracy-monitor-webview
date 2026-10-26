@@ -6,7 +6,10 @@
 
 import ast
 import json
+import os
+import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -37,7 +40,9 @@ class SerializationTests(unittest.TestCase):
                 {
                     "WHITELIST_COMMON_FILE": str(target),
                     "_whitelist_common": {"https://z.example", "https://a.example"},
+                    "_wl_lock": threading.RLock(),
                     "save_json": save_json,
+                    "sys": sys,
                 },
             )
             save_whitelist()
@@ -61,7 +66,10 @@ class SerializationTests(unittest.TestCase):
                 {
                     "SEEN_URLS_FILE": str(target),
                     "_seen_urls": history,
+                    "_seen_urls_lock": threading.RLock(),
                     "json": json,
+                    "os": os,
+                    "sys": sys,
                 },
             )
             save_history()

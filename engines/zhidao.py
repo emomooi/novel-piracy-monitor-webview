@@ -1,6 +1,7 @@
 # engines/zhidao.py
 from urllib.parse import quote
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 class ZhidaoEngine(BaseEngine):
     SOURCE_ID = 'zhidao'
@@ -86,5 +87,6 @@ class ZhidaoEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭百度知道搜索页面失败", exc)
                 pass

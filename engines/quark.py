@@ -11,6 +11,7 @@ from urllib.parse import quote, urlparse, parse_qs, unquote
 
 from config import BLOCKED_DOMAINS
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class QuarkEngine(BaseEngine):
@@ -94,7 +95,8 @@ class QuarkEngine(BaseEngine):
                 if not nxt.startswith('http') or nxt == href:
                     break
                 href = nxt
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("夸克跳转 URL 解析失败，保留当前链接", exc)
                 break
         return href
 
@@ -121,7 +123,8 @@ class QuarkEngine(BaseEngine):
             # ★ 需要登录的检测：夸克没登录时会假装没搜到（只有登录框），必须提醒
             try:
                 login_state = page.evaluate(self.LOGIN_STATE_JS)
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("夸克登录状态解析失败", exc)
                 login_state = {}
             if self._need_login(login_state, body_text):
                 self.app._last_fetch_raw_count = 0
@@ -216,7 +219,8 @@ class QuarkEngine(BaseEngine):
                     if host.startswith('www.'):
                         host = host[4:]
                     author = host or '夸克搜索'
-                except Exception:
+                except Exception as exc:
+                    log_suppressed_error("夸克结果作者域名解析失败，使用默认名称", exc)
                     author = '夸克搜索'
 
                 nr = self.normalize_result(
@@ -241,5 +245,6 @@ class QuarkEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭夸克搜索页面失败", exc)
                 pass

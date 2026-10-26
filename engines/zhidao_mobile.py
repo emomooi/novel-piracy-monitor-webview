@@ -15,6 +15,7 @@ import time
 from urllib.parse import quote
 
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class ZhidaoMobileEngine(BaseEngine):
@@ -139,7 +140,8 @@ class ZhidaoMobileEngine(BaseEngine):
         for i in range(max(1, retries)):
             try:
                 data = page.evaluate(ZhidaoMobileEngine.EXTRACT_JS) or data
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("百度知道手机版结果页解析失败，按未知类型处理", exc)
                 data = {'items': [], 'kind': 'unknown'}
             if data.get('items') or data.get('kind') == 'empty':
                 return data
@@ -166,7 +168,8 @@ class ZhidaoMobileEngine(BaseEngine):
                 try:
                     page.evaluate("() => window.scrollTo(0, document.body.scrollHeight)")
                     time.sleep(0.8)
-                except Exception:
+                except Exception as exc:
+                    log_suppressed_error("百度知道手机版翻页滚动失败", exc)
                     pass
 
             data = self._wait_items(page)
@@ -206,5 +209,6 @@ class ZhidaoMobileEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭百度知道手机版搜索页面失败", exc)
                 pass

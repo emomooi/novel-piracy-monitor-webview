@@ -3,6 +3,7 @@ import time
 from urllib.parse import quote
 from config import BLOCKED_DOMAINS, BLOCKED_URL_TOKENS
 from engines.base import BaseEngine
+from utils import log_suppressed_error
 
 
 class BingEngine(BaseEngine):
@@ -98,11 +99,13 @@ class BingEngine(BaseEngine):
                 time.sleep(2)
                 try:
                     cur2 = (page.url or "").lower()
-                except Exception:
+                except Exception as exc:
+                    log_suppressed_error("必应验证码二次检测读取 URL 失败", exc)
                     cur2 = ""
                 try:
                     body2 = (page.text_content('body') or '').lower()
-                except Exception:
+                except Exception as exc:
+                    log_suppressed_error("必应验证码二次检测读取正文失败", exc)
                     body2 = ""
                 frame_text = ""
                 try:
@@ -112,9 +115,11 @@ class BingEngine(BaseEngine):
                         try:
                             ft = fr.text_content('body') or ''
                             frame_text += ' ' + ft.lower()
-                        except Exception:
+                        except Exception as exc:
+                            log_suppressed_error("必应验证码二次检测读取子框架正文失败", exc)
                             pass
-                except Exception:
+                except Exception as exc:
+                    log_suppressed_error("必应验证码二次检测遍历子框架失败", exc)
                     pass
                 full2 = body2 + ' ' + frame_text
                 hits2 = []
@@ -160,5 +165,6 @@ class BingEngine(BaseEngine):
             try:
                 if page and not getattr(self.app, 'keep_page', False):
                     page.close()
-            except Exception:
+            except Exception as exc:
+                log_suppressed_error("关闭必应搜索页面失败", exc)
                 pass
