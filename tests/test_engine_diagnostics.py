@@ -59,6 +59,21 @@ class EngineDiagnosticsTests(unittest.TestCase):
         self.assertEqual(result, (0, 0))
         self.assertEqual(logs, [])
 
+    def test_duplicate_diagnostics_are_pushed_once(self):
+        result, logs, _ = self._run_fake_engine(
+            ["首条诊断", "重复诊断", "重复诊断", "末条诊断"], []
+        )
+
+        self.assertEqual(result, (0, 0))
+        self.assertEqual(
+            logs,
+            [
+                "测试来源 第 1 页诊断：首条诊断",
+                "测试来源 第 1 页诊断：重复诊断",
+                "测试来源 第 1 页诊断：末条诊断",
+            ],
+        )
+
     def test_page_with_results_does_not_push_diagnostic_log(self):
         result, logs, api = self._run_fake_engine(
             ["此前诊断"], [{"title": "结果", "url": "https://example.test"}]
