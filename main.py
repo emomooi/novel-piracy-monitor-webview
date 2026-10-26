@@ -1097,6 +1097,7 @@ class Api:
             engine = ENGINE_MAP[engine_id](adapter)
             page_num = 0
             captcha_retry = 0
+            previous_page_signature = None
             while page_num < max_pages:
                 if _stop_event.is_set():
                     break
@@ -1140,6 +1141,24 @@ class Api:
                             f"{label} 第 {page_num + 1} 页诊断：{diagnostic}"
                         )
                     break
+
+                page_signature = frozenset(
+                    " ".join(str(result.get("title", "")).split()).casefold()
+                    for result in page_results
+                    if isinstance(result, dict)
+                    and str(result.get("title", "")).strip()
+                )
+                if (
+                    page_signature
+                    and previous_page_signature
+                    and page_signature == previous_page_signature
+                ):
+                    self.push_log(
+                        f"{label} 第 {page_num + 1} 页与上一页内容相同，"
+                        "停止翻页（该来源可能不支持翻页）"
+                    )
+                    break
+                previous_page_signature = page_signature or None
 
                 page_matched, wl_dirty = self._emit_page_results(
                     label, page_results, book, keyword, engine_id, page_num
