@@ -128,6 +128,8 @@ class SogouMobileEngine(BaseEngine):
             # ★ 统一口径：原始 N = DOM 抓到的原始条数（过滤前）
             items = items or []
             self.app._last_fetch_raw_count = len(items)
+            if not items:
+                self.note("未解析到搜狗移动版结果条目（可能无结果、风控/登录状态异常，或页面结构已变）")
 
             normalized = []
             for it in items:

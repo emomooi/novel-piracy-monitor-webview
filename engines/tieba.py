@@ -76,6 +76,8 @@ class TiebaEngine(BaseEngine):
                 items = []
 
             self.app._last_fetch_raw_count = len(items)
+            if not items:
+                self.note("未解析到贴吧结果卡片（可能无结果、风控/登录状态异常，或页面结构已变）")
 
             filtered = []
             for it in items:

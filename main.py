@@ -484,6 +484,9 @@ class WebViewAppAdapter:
         with _wl_lock:
             return url in self.whitelist_common
 
+    def should_stop(self):
+        return _stop_event.is_set()
+
     def push_log(self, msg):
         return self.api.push_log(str(msg))
 

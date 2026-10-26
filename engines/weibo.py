@@ -66,6 +66,9 @@ class WeiboEngine(BaseEngine):
                 }
             """)
 
+            if not items:
+                self.note("未解析到微博结果条目（可能无结果、风控/登录状态异常，或页面结构已变）")
+
             normalized = []
             for it in items:
                 normalized.append(self.normalize_result(

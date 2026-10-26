@@ -141,6 +141,9 @@ class ToutiaoMobileEngine(BaseEngine):
 
             self.app._last_fetch_raw_count = len(items) if items else 0
 
+            if not items:
+                self.note("未解析到头条移动版结果条目（可能无结果、风控/登录状态异常，或页面结构已变）")
+
             results = []
             seen_urls = set()
             for it in items:

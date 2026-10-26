@@ -113,6 +113,8 @@ class So360MobileEngine(BaseEngine):
             """)
 
             self.app._last_fetch_raw_count = len(items) if items else 0
+            if not items:
+                self.note("未解析到 360 移动版结果条目（可能无结果、风控/登录状态异常，或页面结构已变）")
             normalized = []
             for it in items:
                 long_href = (it.get('longHref') or it.get('url', '') or '').strip()

@@ -113,7 +113,16 @@ class WeiboMobileEngine(BaseEngine):
             self.log(f"  [微博移动] 接口 ok={payload.get('ok')}，"
                      f"跳转={str(payload.get('url') or '')[:90]}")
             return None, cid
-        return self._mblogs_of(payload), cid
+        mblogs = self._mblogs_of(payload)
+        cards = ((payload.get('data') or {}).get('cards')) or []
+        has_no_result_hint = any(
+            str(bucket.get('card_type')) == '7'
+            for card in cards
+            for bucket in [card] + list(card.get('card_group') or [])
+        )
+        if not mblogs and not has_no_result_hint:
+            self.note("微博移动搜索接口未返回可解析的微博条目（可能无结果或接口数据结构变化）")
+        return mblogs, cid
 
     def _open_search_page(self, context, cid):
         """打开真实搜索页。

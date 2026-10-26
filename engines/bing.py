@@ -135,6 +135,9 @@ class BingEngine(BaseEngine):
                     self.pause_for_user("必应搜索要求验证码/安全验证")
                     return results
 
+            if not items:
+                self.note("未解析到必应结果条目（可能无结果、风控/登录状态异常，或页面结构已变）")
+
             filtered_items = []
             for it in items:
                 if not isinstance(it, dict):
