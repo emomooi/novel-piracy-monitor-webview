@@ -182,6 +182,7 @@ class ToutiaoPCEngine(BaseEngine):
         self.app._last_fetch_raw_count = len(items)
         results = []
         if not items:
+            self.note("未解析到头条 PC 结果卡片（页面结构可能已变）")
             return results
 
         seen = set()

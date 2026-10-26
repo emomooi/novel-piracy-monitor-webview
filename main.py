@@ -1130,6 +1130,10 @@ class Api:
                         break
 
                 if not page_results:
+                    for diagnostic in getattr(engine, "diagnostics", ()):
+                        self.push_log(
+                            f"{label} 第 {page_num + 1} 页诊断：{diagnostic}"
+                        )
                     break
 
                 page_matched, wl_dirty = self._emit_page_results(
@@ -1145,6 +1149,10 @@ class Api:
                 #    由外层 max_pages 控制；这里只管"提前停"）
                 if page_matched == 0:
                     self.push_log(f"{label} 第 {page_num + 1} 页 0 命中，停止翻页")
+                    for diagnostic in getattr(engine, "diagnostics", ()):
+                        self.push_log(
+                            f"{label} 第 {page_num + 1} 页诊断：{diagnostic}"
+                        )
                     break
 
                 page_num += 1

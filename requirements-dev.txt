@@ -1,0 +1,6 @@
+# 测试所需运行依赖；winotify 为可选桌面通知依赖。
+playwright
+pywebview
+pillow
+# 可选：仅在需要 Windows 桌面通知时安装。
+# winotify
