@@ -26,7 +26,8 @@ class BaiduMobileEngine(BaseEngine):
     EXTRA_URL = 'https://newcopyright.baidu.com/'
 
     def _build_search_url(self, term, page_num):
-        return f"https://m.baidu.com/s?word={quote(term)}&pn={page_num * 10}"
+        offset = self.page_offset(page_num, 10, 0)
+        return f"https://m.baidu.com/s?word={quote(term)}&pn={offset}"
 
     # 风控/验证码特征
     CAPTCHA_URL_TOKENS = ('wappass', 'verify', 'captcha', '/punish', 'sec-bot')

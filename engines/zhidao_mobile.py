@@ -27,7 +27,8 @@ class ZhidaoMobileEngine(BaseEngine):
     def _build_search_url(self, term, page_num):
         url = self.SEARCH_URL.format(kw=quote(term))
         if page_num:
-            url += f"&pn={page_num * 10}"
+            offset = self.page_offset(page_num, 10, 0)
+            url += f"&pn={offset}"
         return url
 
     # 手机版结果区：认 data-url / 卡片 id，再兜底扫一遍普通链接

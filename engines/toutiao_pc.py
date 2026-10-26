@@ -29,7 +29,8 @@ class ToutiaoPCEngine(BaseEngine):
     _cookie_cleared = False
 
     def _build_search_url(self, term, page_num):
-        offset = max(0, int(page_num or 0)) * 10
+        normalized_page = max(0, int(page_num or 0))
+        offset = self.page_offset(normalized_page, 10, 0)
         return (f"https://so.toutiao.com/search?dvpf=pc&source=input"
                 f"&keyword={quote(term)}&offset={offset}&enable_druid_v2=1")
 

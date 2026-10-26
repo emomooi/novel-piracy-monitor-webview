@@ -12,7 +12,8 @@ class So360MobileEngine(BaseEngine):
     EXTRA_URL = 'https://mail.qq.com/'
 
     def _build_search_url(self, term, page_num):
-        return f"https://m.so.com/s?q={quote(term)}&pn={page_num * 10}"
+        offset = self.page_offset(page_num, 10, 0)
+        return f"https://m.so.com/s?q={quote(term)}&pn={offset}"
 
     def fetch(self, context, term, page_num=0, book_kw=''):
         page = None

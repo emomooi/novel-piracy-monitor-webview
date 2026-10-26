@@ -32,7 +32,8 @@ class QuarkEngine(BaseEngine):
                          '扫码登录', '账号登录', '登录后即可')
 
     def _build_search_url(self, term, page_num):
-        offset = max(0, int(page_num or 0)) * 10
+        normalized_page = max(0, int(page_num or 0))
+        offset = self.page_offset(normalized_page, 10, 0)
         tpl = self.FETCH_URL or self.SEARCH_URL
         return tpl.format(kw=quote(term)) + f"&offset={offset}"
 

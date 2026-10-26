@@ -114,6 +114,20 @@ URL_SNAPSHOTS = {
 
 class EngineSnapshotTests(unittest.TestCase):
     def test_search_url_snapshots(self):
+        from engines.base import BaseEngine
+
+        for page_num, expected in ((0, 0), (1, 10), (2, 20), (999, 9990)):
+            with self.subTest(page_num=page_num):
+                self.assertEqual(BaseEngine.page_offset(page_num, 10, 0), expected)
+        self.assertEqual(BaseEngine.page_offset(0, 10, 1), 1)
+        self.assertEqual(BaseEngine.page_offset(1, 10, 1), 11)
+        self.assertEqual(BaseEngine.page_offset(2, 1, 1), 3)
+        self.assertEqual(BaseEngine.page_offset(999, 1, 0), 999)
+        self.assertEqual(BaseEngine.page_offset(-1, 10, 0), -10)
+        self.assertEqual(BaseEngine.page_offset("2", 10, 0), "2222222222")
+        self.assertIsNone(BaseEngine.page_offset(None, 1, 0))
+        with self.assertRaises(TypeError):
+            BaseEngine.page_offset(None, 10, 0)
         for engine_class, expected_urls in URL_SNAPSHOTS.items():
             with self.subTest(engine=engine_class.__name__):
                 engine = engine_class(None)

@@ -13,7 +13,8 @@ class BingEngine(BaseEngine):
     EXTRA_URL = 'https://www.bing.com/webmaster/tools/contentremovalform'
 
     def _build_search_url(self, term, page_num):
-        return f"https://www.bing.com/search?q={quote(term)}&first={page_num * 10 + 1}"
+        first = self.page_offset(page_num, 10, 1)
+        return f"https://www.bing.com/search?q={quote(term)}&first={first}"
 
     def fetch(self, context, term, page_num=0, book_kw=''):
         results = []
@@ -161,6 +162,5 @@ class BingEngine(BaseEngine):
                     page.close()
             except Exception:
                 pass
-
 
 

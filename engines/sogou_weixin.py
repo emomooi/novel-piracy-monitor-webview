@@ -14,7 +14,8 @@ class SogouWeixinEngine(BaseEngine):
     EXTRA_URL = 'https://mp.weixin.qq.com/'
 
     def _build_search_url(self, term, page_num):
-        return f"https://weixin.sogou.com/weixin?query={quote(term)}&type=2&ie=utf8&page={page_num + 1}"
+        page = self.page_offset(page_num, 1, 1)
+        return f"https://weixin.sogou.com/weixin?query={quote(term)}&type=2&ie=utf8&page={page}"
 
     @staticmethod
     def _normalize_weixin_link(raw_href):

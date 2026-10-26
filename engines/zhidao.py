@@ -11,7 +11,8 @@ class ZhidaoEngine(BaseEngine):
     EXTRA_URL = 'https://newcopyright.baidu.com/'
 
     def _build_search_url(self, term, page_num):
-        return f"https://zhidao.baidu.com/search?word={quote(term)}&pn={page_num * 10}"
+        offset = self.page_offset(page_num, 10, 0)
+        return f"https://zhidao.baidu.com/search?word={quote(term)}&pn={offset}"
 
     def fetch(self, context, term, page_num=0, book_kw=''):
         results = []

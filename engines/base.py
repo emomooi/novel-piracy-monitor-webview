@@ -21,6 +21,15 @@ class BaseEngine:
     def pause_for_user(self, reason):
         self.app.pause_for_user(reason)
 
+    @staticmethod
+    def page_offset(page_num, per_page, page_base):
+        """按引擎提供的页大小与基数计算页码参数，不处理输入或翻页策略。"""
+        if per_page == 1 and page_base == 0:
+            return page_num
+        if page_base == 0:
+            return page_num * per_page
+        return page_num * per_page + page_base
+
     # 这些页面的定位信息就在查询串里，截断后就打不开了
     KEEP_QUERY_PREFIXES = (
         'https://mp.weixin.qq.com/s',
