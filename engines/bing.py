@@ -1,6 +1,5 @@
 # engines/bing.py
 import time
-import random
 from urllib.parse import quote
 from config import BLOCKED_DOMAINS, BLOCKED_URL_TOKENS
 from engines.base import BaseEngine
@@ -11,6 +10,7 @@ class BingEngine(BaseEngine):
     SOURCE_LABEL = '必应'
     SEARCH_URL = 'https://cn.bing.com/search?q={kw}'
     EXTRA_URL = 'https://www.bing.com/webmaster/tools/contentremovalform'
+    RANDOM_WAIT_RANGE = (2, 4)
 
     def _build_search_url(self, term, page_num):
         first = self.page_offset(page_num, 10, 1)
@@ -23,7 +23,7 @@ class BingEngine(BaseEngine):
             url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(2, 4))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or "").lower()
             body_text = (page.text_content('body') or '').lower()
@@ -162,5 +162,3 @@ class BingEngine(BaseEngine):
                     page.close()
             except Exception:
                 pass
-
-

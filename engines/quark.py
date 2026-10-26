@@ -6,8 +6,7 @@
 - 结果卡片用多套选择器兜底，尽量不因改版而抓空
 - 最终网址 = 落地页；源链接 = 卡片里的原始链接（若为跳转链则原样保留）
 """
-import random
-import time
+
 from urllib.parse import quote, urlparse, parse_qs, unquote
 
 from config import BLOCKED_DOMAINS
@@ -21,6 +20,7 @@ class QuarkEngine(BaseEngine):
     FETCH_URL = ''                      # 实际抓取网址；留空就用上面的 SEARCH_URL
     HOME_BASE = 'https://quark.sm.cn'   # 补全相对链接用（子类改成自己的域名）
     EXTRA_URL = 'https://ipp.quark.cn/#/home'
+    RANDOM_WAIT_RANGE = (3, 5)
 
     # 风控/验证码特征
     CAPTCHA_URL_TOKENS = ('_____tmd_____', '/punish', 'captcha', 'verify', 'wappass')
@@ -105,7 +105,7 @@ class QuarkEngine(BaseEngine):
             url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(3, 5))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '')

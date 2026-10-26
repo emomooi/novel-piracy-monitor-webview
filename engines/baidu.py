@@ -1,7 +1,5 @@
 # engines/baidu.py
 import re
-import time
-import random
 from urllib.parse import quote, urlparse
 from config import BLOCKED_DOMAINS
 from utils import title_matches, title_or_summary_matches
@@ -12,6 +10,7 @@ class BaiduEngine(BaseEngine):
     SOURCE_LABEL = '百度'
     SEARCH_URL = 'https://www.baidu.com/s?wd={kw}'
     EXTRA_URL = 'https://newcopyright.baidu.com/'
+    RANDOM_WAIT_RANGE = (3, 5)
 
     def _build_search_url(self, term, page_num):
         offset = self.page_offset(page_num, 10, 0)
@@ -24,7 +23,7 @@ class BaiduEngine(BaseEngine):
             url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(3, 5))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or "").lower()
             if "wappass" in cur or "verify" in cur or "captcha" in cur:

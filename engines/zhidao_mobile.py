@@ -12,7 +12,6 @@
 5. 没结果时页面给「未找到相关问题」（.new-noresult），属于正常情况，不当报错。
 """
 import time
-import random
 from urllib.parse import quote
 
 from engines.base import BaseEngine
@@ -23,6 +22,7 @@ class ZhidaoMobileEngine(BaseEngine):
     SOURCE_LABEL = '知道手机版'
     SEARCH_URL = 'https://zhidao.baidu.com/index/?fr=&word={kw}'
     EXTRA_URL = 'https://newcopyright.baidu.com/'
+    RANDOM_WAIT_RANGE = (2.5, 4.5)
 
     def _build_search_url(self, term, page_num):
         url = self.SEARCH_URL.format(kw=quote(term))
@@ -154,7 +154,7 @@ class ZhidaoMobileEngine(BaseEngine):
             url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(2.5, 4.5))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or "").lower()
             if "wappass" in cur or "verify" in cur or "captcha" in cur or "passport" in cur:

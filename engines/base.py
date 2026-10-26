@@ -1,5 +1,7 @@
 # engines/base.py
 import re
+import random
+import time
 from urllib.parse import urlsplit
 
 from utils import filter_summary, normalize_date, strip_date_from_text
@@ -29,6 +31,11 @@ class BaseEngine:
         if page_base == 0:
             return page_num * per_page
         return page_num * per_page + page_base
+
+    @staticmethod
+    def wait_random(min_seconds, max_seconds):
+        """在指定秒数范围内随机等待。"""
+        time.sleep(random.uniform(min_seconds, max_seconds))
 
     # 这些页面的定位信息就在查询串里，截断后就打不开了
     KEEP_QUERY_PREFIXES = (

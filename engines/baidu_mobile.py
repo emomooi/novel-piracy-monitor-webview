@@ -9,9 +9,7 @@
 常规模式搜手机版，深度模式再加搜 PC 版（见 config.SOURCE_GROUPS）。
 """
 import json
-import random
 import re
-import time
 from urllib.parse import quote, unquote, urlparse
 
 from config import BLOCKED_DOMAINS, BASE_DIR
@@ -24,6 +22,7 @@ class BaiduMobileEngine(BaseEngine):
     SOURCE_LABEL = '百度m'
     SEARCH_URL = 'https://m.baidu.com/s?word={kw}'
     EXTRA_URL = 'https://newcopyright.baidu.com/'
+    RANDOM_WAIT_RANGE = (3, 5)
 
     def _build_search_url(self, term, page_num):
         offset = self.page_offset(page_num, 10, 0)
@@ -65,7 +64,7 @@ class BaiduMobileEngine(BaseEngine):
             url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(3, 5))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '')

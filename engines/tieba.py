@@ -1,6 +1,5 @@
 # engines/tieba.py
 import time
-import random
 from urllib.parse import quote
 from utils import title_or_summary_matches
 from engines.base import BaseEngine
@@ -12,8 +11,8 @@ class TiebaEngine(BaseEngine):
     EXTRA_URL = 'https://newcopyright.baidu.com/'
 
     def _build_search_url(self, term, page_num):
-        page = self.page_offset(page_num, 1, 0)
-        return f"https://tieba.baidu.com/f/search/res?ie=utf-8&qw={quote(term)}&pn={page}"
+        page_no = self.page_offset(page_num, 1, 0)
+        return f"https://tieba.baidu.com/f/search/res?ie=utf-8&qw={quote(term)}&pn={page_no}"
 
     def fetch(self, context, term, page_num=0, book_kw=''):
         page = None

@@ -1,5 +1,3 @@
-import random
-import time
 from urllib.parse import quote, urlparse, parse_qs, unquote
 
 from engines.base import BaseEngine
@@ -10,6 +8,7 @@ class ToutiaoMobileEngine(BaseEngine):
     SOURCE_LABEL = '头条移动'
     SEARCH_URL = 'https://m.toutiao.com/search?keyword={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
+    RANDOM_WAIT_RANGE = (2, 4)
 
     def _build_search_url(self, term, page_num):
         normalized_page = max(0, int(page_num or 0))
@@ -56,7 +55,7 @@ class ToutiaoMobileEngine(BaseEngine):
             url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(2, 4))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '').lower()

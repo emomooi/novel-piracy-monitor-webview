@@ -2,6 +2,7 @@
 
 import unittest
 from urllib.parse import urlsplit
+from unittest.mock import call, patch
 
 from engines import ENGINE_MAP
 from engines.baidu import BaiduEngine
@@ -11,6 +12,7 @@ from engines.quark import QuarkEngine
 from engines.so360_mobile import So360MobileEngine
 from engines.so360_pc import So360PCEngine
 from engines.sogou_pc import SogouPCEngine
+from engines.sogou_mobile import SogouMobileEngine
 from engines.sogou_weixin import SogouWeixinEngine
 from engines.tieba import TiebaEngine
 from engines.toutiao_mobile import ToutiaoMobileEngine
@@ -115,6 +117,42 @@ URL_SNAPSHOTS = {
 class EngineSnapshotTests(unittest.TestCase):
     def test_search_url_snapshots(self):
         from engines.base import BaseEngine
+
+        wait_engines = (
+            BaiduEngine,
+            BaiduMobileEngine,
+            ZhidaoEngine,
+            ZhidaoMobileEngine,
+            So360PCEngine,
+            So360MobileEngine,
+            BingEngine,
+            ToutiaoPCEngine,
+            ToutiaoMobileEngine,
+            QuarkEngine,
+            ENGINE_MAP["quark_cn"],
+            SogouPCEngine,
+            SogouMobileEngine,
+            SogouWeixinEngine,
+            WeiboEngine,
+        )
+        for engine_class in wait_engines:
+            with self.subTest(wait_engine=engine_class.__name__):
+                min_seconds, max_seconds = engine_class.RANDOM_WAIT_RANGE
+                self.assertLessEqual(min_seconds, max_seconds)
+                with (
+                    patch("engines.base.random.uniform", side_effect=(min_seconds, max_seconds)) as uniform,
+                    patch("engines.base.time.sleep") as sleep,
+                ):
+                    BaseEngine.wait_random(min_seconds, max_seconds)
+                    BaseEngine.wait_random(min_seconds, max_seconds)
+                self.assertEqual(
+                    uniform.call_args_list,
+                    [call(min_seconds, max_seconds), call(min_seconds, max_seconds)],
+                )
+                self.assertEqual(
+                    sleep.call_args_list,
+                    [call(min_seconds), call(max_seconds)],
+                )
 
         for page_num, expected in ((0, 0), (1, 10), (2, 20), (999, 9990)):
             with self.subTest(page_num=page_num):

@@ -1,5 +1,3 @@
-import random
-import time
 from urllib.parse import quote
 
 from engines.base import BaseEngine
@@ -10,10 +8,11 @@ class SogouPCEngine(BaseEngine):
     SOURCE_LABEL = '搜狗PC'
     SEARCH_URL = 'https://www.sogou.com/web?query={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
+    RANDOM_WAIT_RANGE = (2, 4)
 
     def _build_search_url(self, term, page_num):
-        page = self.page_offset(page_num, 1, 1)
-        return f"https://www.sogou.com/web?query={quote(term)}&page={page}"
+        page_no = self.page_offset(page_num, 1, 1)
+        return f"https://www.sogou.com/web?query={quote(term)}&page={page_no}"
 
     def fetch(self, context, term, page_num=0, book_kw=''):
         page = None
@@ -21,7 +20,7 @@ class SogouPCEngine(BaseEngine):
             url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             resp = page.goto(url, wait_until="domcontentloaded", timeout=20000)
-            time.sleep(random.uniform(2, 4))
+            self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or '').lower()
             try:
