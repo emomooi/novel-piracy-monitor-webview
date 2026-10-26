@@ -961,11 +961,8 @@
       tableScroll.scrollTop = tableScroll.scrollHeight;
     }
 
-    // 白名单行沉底
-    window.reorderRows();
-
-    // 新行进来后按当前筛选条件应用一次（批 4-A-4）
-    if (typeof window.applyFilters === 'function') { window.applyFilters(); }
+    insertRowInOrder(row);
+    applyFilterToRow(row);
 
     return tableBody.children.length;
   };
@@ -1319,6 +1316,41 @@
     return '';
   }
 
+  function compareRowsByDisplayOrder(a, b) {
+    var aWhite = !!(a.classList && a.classList.contains('row-white'));
+    var bWhite = !!(b.classList && b.classList.contains('row-white'));
+    if (aWhite !== bWhite) { return aWhite ? 1 : -1; }
+
+    var da = parseDateKey(a.dataset.date || '');
+    var db = parseDateKey(b.dataset.date || '');
+    if (!da && !db) { return 0; }
+    if (!da) { return 1; }
+    if (!db) { return -1; }
+    return db.localeCompare(da);
+  }
+
+  function insertRowInOrder(row) {
+    var tbody = document.getElementById('tableBody');
+    if (!tbody || tbody.children.length < 2) { return; }
+
+    var rowIndex = tbody.children.length - 1;
+    var low = 0;
+    var high = rowIndex;
+    while (low < high) {
+      var mid = Math.floor((low + high) / 2);
+      if (compareRowsByDisplayOrder(tbody.children[mid], row) <= 0) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+
+    if (low < rowIndex) {
+      tbody.insertBefore(row, tbody.children[low]);
+      _lastAnchorRowIdx = null;
+    }
+  }
+
   /* 白名单行沉底 + 组内日期倒序（新→旧，"未知"排最后）
      沉底优先级 > 日期排序：先按白名单分两组，再各自按日期倒序 */
   window.reorderRows = function () {
@@ -1374,25 +1406,27 @@
     '360':    ['360', '360移动版'],
   };
 
+  function applyFilterToRow(r) {
+    var src = r.dataset.source || '';
+    var allowedSrcs = TAB_GROUPS[_currentTabFilter] || [_currentTabFilter];
+    var tabOK = (_currentTabFilter === TAB_ALL) || (allowedSrcs.indexOf(src) >= 0);
+
+    var textOK = true;
+    if (_searchBoxFilter) {
+      var hay = (
+        (r.dataset.title || '') + ' ' +
+        (r.dataset.summary || '') + ' ' +
+        (r.dataset.url || '')
+      ).toLowerCase();
+      textOK = hay.indexOf(_searchBoxFilter) >= 0;
+    }
+
+    r.style.display = (tabOK && textOK) ? '' : 'none';
+  }
+
   window.applyFilters = function () {
     var allRows = getAllRows();
-    allRows.forEach(function (r) {
-      var src = r.dataset.source || '';
-      var allowedSrcs = TAB_GROUPS[_currentTabFilter] || [_currentTabFilter];
-      var tabOK = (_currentTabFilter === TAB_ALL) || (allowedSrcs.indexOf(src) >= 0);
-
-      var textOK = true;
-      if (_searchBoxFilter) {
-        var hay = (
-          (r.dataset.title || '') + ' ' +
-          (r.dataset.summary || '') + ' ' +
-          (r.dataset.url || '')
-        ).toLowerCase();
-        textOK = hay.indexOf(_searchBoxFilter) >= 0;
-      }
-
-      r.style.display = (tabOK && textOK) ? '' : 'none';
-    });
+    allRows.forEach(applyFilterToRow);
 
     if (typeof window.reorderRows === 'function') { window.reorderRows(); }
   };
