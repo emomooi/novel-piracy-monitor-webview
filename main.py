@@ -604,7 +604,10 @@ class Api:
     # ==================== 载入历史数据（批 6） ====================
     def load_history(self):
         """返回历史记录列表（给前端「载入历史数据」渲染）"""
+        _load_whitelist()
         _load_seen_urls()
+        with _wl_lock:
+            whitelist_snapshot = set(_whitelist_common)
         result = []
         with _seen_urls_lock:
             seen_snapshot = list(_seen_urls.items())
@@ -615,6 +618,7 @@ class Api:
                 "url": url,
                 "book": meta.get("book", ""),
                 "source": meta.get("source", ""),
+                "is_white": url in whitelist_snapshot,
             })
         print(f"[seen_urls] load_history → {len(result)} 条")
         return result

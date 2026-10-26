@@ -110,6 +110,7 @@ class FakeNode {
 
 function makeEnvironment(optimized) {
   const tbody = new FakeNode('div');
+  const historyButton = new FakeNode('button');
   const tableScroll = {
     scrollHeight: 100,
     scrollTop: 0,
@@ -118,7 +119,9 @@ function makeEnvironment(optimized) {
   const window = {};
   const document = {
     getElementById(id) {
-      return id === 'tableBody' ? tbody : null;
+      if (id === 'tableBody') return tbody;
+      if (id === 'btnTbHistory') return historyButton;
+      return null;
     },
     querySelectorAll(selector) {
       assert.equal(selector, '#tableBody .table-row');
@@ -180,6 +183,7 @@ function makeEnvironment(optimized) {
   }
 
   vm.runInContext(`${source}\n${appendSource}`, context);
+  window.appendLog = function () {};
   const counters = { getAllRows: 0, reorderRows: 0, applyFilters: 0, filterRow: 0 };
   const originalGetAllRows = context.getAllRows;
   context.getAllRows = function () {
@@ -201,7 +205,7 @@ function makeEnvironment(optimized) {
     counters.applyFilters += 1;
     return originalApplyFilters();
   };
-  return { context, tbody, window, counters };
+  return { context, tbody, window, counters, historyButton };
 }
 
 function makeRows() {
@@ -253,6 +257,64 @@ function snapshot(tbody) {
   }));
 }
 
+async function testHistoryWhitelistRows() {
+  const environment = makeEnvironment(true);
+  const records = [
+    {
+      url: 'https://example.test/white-a',
+      book: '白名单作品 A',
+      source: '百度',
+      is_white: true,
+    },
+    {
+      url: 'https://example.test/plain',
+      book: '普通作品',
+      source: '知道',
+      is_white: false,
+    },
+    {
+      url: 'https://example.test/white-b',
+      book: '白名单作品 B',
+      source: '搜狗',
+      is_white: true,
+    },
+  ];
+  environment.window.pywebview = {
+    api: {
+      load_history() {
+        return Promise.resolve(records);
+      },
+    },
+  };
+  environment.context.requireApi = () => true;
+  const historySource = between(
+    'var btnTbOpen = document.getElementById',
+    '  /* ==================== 清 cookies',
+  );
+  vm.runInContext(historySource, environment.context);
+  assert.equal(typeof environment.historyButton.listeners.click, 'function');
+  environment.historyButton.listeners.click();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const rows = snapshot(environment.tbody);
+  assert.equal(rows.length, records.length);
+  assert.deepEqual(
+    rows.map((row) => row.dataset.url),
+    [
+      'https://example.test/plain',
+      'https://example.test/white-a',
+      'https://example.test/white-b',
+    ],
+    'history rows must keep non-white rows first and white rows at the bottom',
+  );
+  const whiteRows = rows.filter((row) => row.classes.includes('row-white'));
+  assert.equal(whiteRows.length, 2);
+  assert.deepEqual(
+    whiteRows.map((row) => row.dataset.whiteCommon),
+    ['1', '1'],
+  );
+}
+
 const records = makeRows();
 const baseline = makeEnvironment(false);
 const optimized = makeEnvironment(true);
@@ -286,3 +348,9 @@ assert.equal(optimized.counters.applyFilters, 0);
 assert.equal(optimized.counters.filterRow, records.length);
 
 console.log('frontend row equivalence: OK');
+testHistoryWhitelistRows()
+  .then(() => console.log('frontend history whitelist: OK'))
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
