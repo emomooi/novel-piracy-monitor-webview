@@ -19,7 +19,9 @@ class TiebaEngine(BaseEngine):
         try:
             url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
-            page.goto(url, wait_until="networkidle", timeout=40000)
+            self.goto_with_stop(page, url, wait_until="networkidle", timeout=40000)
+            if self.navigation_stopped:
+                return []
             time.sleep(4)
 
             cur = (page.url or "").lower()

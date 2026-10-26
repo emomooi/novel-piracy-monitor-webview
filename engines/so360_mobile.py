@@ -20,7 +20,9 @@ class So360MobileEngine(BaseEngine):
         try:
             url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
-            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            self.goto_with_stop(page, url, wait_until="domcontentloaded", timeout=30000)
+            if self.navigation_stopped:
+                return []
             self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or '').lower()

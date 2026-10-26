@@ -133,12 +133,21 @@ class WeiboMobileEngine(BaseEngine):
         page = None
         try:
             page = self._create_stealth_page(context)
-            page.goto(f"https://m.weibo.cn/search?containerid={cid}",
-                      wait_until="domcontentloaded", timeout=30000)
+            self.goto_with_stop(
+                page,
+                f"https://m.weibo.cn/search?containerid={cid}",
+                wait_until="domcontentloaded",
+                timeout=30000,
+            )
+            if self.navigation_stopped:
+                return None
             try:
-                page.wait_for_url(
+                self.wait_for_url_with_stop(
+                    page,
                     lambda u: 'm.weibo.cn' in (u or '') and 'passport' not in (u or ''),
                     timeout=12000)
+                if self.navigation_stopped:
+                    return None
             except Exception as exc:
                 log_suppressed_error("微博移动搜索页等待跳转失败", exc)
                 pass

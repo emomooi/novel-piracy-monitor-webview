@@ -76,8 +76,12 @@ class SogouWeixinEngine(BaseEngine):
         try:
             context = search_page.context
             page = context.new_page()
-            page.goto(link_url, referer='https://weixin.sogou.com/',
-                      wait_until='domcontentloaded', timeout=20000)
+            self.goto_with_stop(
+                page, link_url, referer='https://weixin.sogou/',
+                wait_until='domcontentloaded', timeout=20000,
+            )
+            if self.navigation_stopped:
+                return ''
 
             # ★ 检测搜狗验证码页：URL 含 antispider / 页面含 VerifyCode / 验证码
             cur = (page.url or '').lower()
@@ -100,8 +104,11 @@ class SogouWeixinEngine(BaseEngine):
                 return ''
 
             try:
-                page.wait_for_url(
+                self.wait_for_url_with_stop(
+                    page,
                     lambda u: 'mp.weixin.qq.com' in (u or ''), timeout=6000)
+                if self.navigation_stopped:
+                    return ''
             except Exception as exc:
                 log_suppressed_error("搜狗微信跳转等待超时或失败", exc)
                 pass
@@ -138,7 +145,9 @@ class SogouWeixinEngine(BaseEngine):
         try:
             url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
-            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            self.goto_with_stop(page, url, wait_until="domcontentloaded", timeout=30000)
+            if self.navigation_stopped:
+                return []
             self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             cur = (page.url or '').lower()
