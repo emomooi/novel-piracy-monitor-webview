@@ -29,7 +29,7 @@ from playwright.sync_api import sync_playwright
 
 from config import SOURCE_GROUPS, BLOCKED_DOMAINS, BLOCKED_URL_TOKENS, ALLOWED_URL_PREFIXES, WHITELIST_COMMON_FILE
 from engines import ENGINE_MAP
-from utils import title_or_summary_matches, save_json
+from utils import title_or_summary_matches, save_json, migrate_old_files
 
 import single_instance
 
@@ -1265,6 +1265,10 @@ def main():
         print("程序已在运行")
         sys.exit(0)
 
+    # 单实例守卫通过后迁移，且早于窗口启动及任何运行数据读取。
+    migration_messages = []
+    migrate_old_files(migration_messages.append)
+
     api = Api()
 
     window = webview.create_window(
@@ -1280,6 +1284,20 @@ def main():
     # 注册唤醒回调：第二个实例启动时，把本窗口显示到最前
     guard.on_wake(lambda: _bring_to_front(window))
 
+    migration_messages_delivered = False
+
+    def show_migration_messages(*_args):
+        nonlocal migration_messages_delivered
+        if migration_messages_delivered:
+            return
+        migration_messages_delivered = True
+        for message in migration_messages:
+            try:
+                api.push_log(message)
+            except Exception as exc:
+                print(f"{message}（界面日志不可用：{exc}）", file=sys.stderr)
+
+    window.events.loaded += show_migration_messages
     webview.start(debug=os.environ.get("PM_DEBUG") == "1")
 
 
