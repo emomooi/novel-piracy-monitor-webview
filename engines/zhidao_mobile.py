@@ -24,6 +24,7 @@ class ZhidaoMobileEngine(BaseEngine):
     SEARCH_URL = 'https://zhidao.baidu.com/index/?fr=&word={kw}'
     EXTRA_URL = 'https://newcopyright.baidu.com/'
     RANDOM_WAIT_RANGE = (2.5, 4.5)
+    CAPTCHA_URL_TOKENS = ("wappass", "verify", "captcha", "passport")
 
     def _build_search_url(self, term, page_num):
         url = self.SEARCH_URL.format(kw=quote(term))
@@ -160,8 +161,7 @@ class ZhidaoMobileEngine(BaseEngine):
                 return []
             self.wait_random(*self.RANDOM_WAIT_RANGE)
 
-            cur = (page.url or "").lower()
-            if "wappass" in cur or "verify" in cur or "captcha" in cur or "passport" in cur:
+            if self.detect_captcha(page, url_tokens=self.CAPTCHA_URL_TOKENS):
                 self.pause_for_user("百度知道手机版要求验证码/登录")
                 return results
 

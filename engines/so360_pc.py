@@ -10,6 +10,7 @@ class So360PCEngine(BaseEngine):
     SEARCH_URL = 'https://www.so.com/s?q={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
     RANDOM_WAIT_RANGE = (2, 4)
+    CAPTCHA_URL_TOKENS = ("captcha", "verify", "wappass")
 
     def _build_search_url(self, term, page_num):
         offset = self.page_offset(page_num, 10, 0)
@@ -25,8 +26,7 @@ class So360PCEngine(BaseEngine):
                 return []
             self.wait_random(*self.RANDOM_WAIT_RANGE)
 
-            cur = (page.url or '').lower()
-            if 'captcha' in cur or 'verify' in cur or 'wappass' in cur:
+            if self.detect_captcha(page, url_tokens=self.CAPTCHA_URL_TOKENS):
                 # ★ 不关页面：有头模式下把验证页留给用户手动处理
                 self.pause_for_user('360搜索要求验证码/登录')
                 return []

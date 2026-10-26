@@ -6,10 +6,12 @@
 手动搜索入口由前端映射处理；测试专用程序里留 quark.sm.cn / m.sm.cn / so.m.sm.cn 等入口继续对比。
 """
 from engines.quark import QuarkEngine
+from config import QUARK_ENTRYPOINTS
 
 
 class QuarkCnEngine(QuarkEngine):
     SOURCE_ID = 'quark_cn'
     SOURCE_LABEL = '夸克'
-    SEARCH_URL = 'https://www.quark.cn/s?q={kw}'
-    HOME_BASE = 'https://www.quark.cn'
+    ENTRYPOINT = QUARK_ENTRYPOINTS[SOURCE_ID]
+    SEARCH_URL = ENTRYPOINT['search_url']
+    HOME_BASE = ENTRYPOINT['home_base']

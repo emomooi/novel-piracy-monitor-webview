@@ -779,7 +779,6 @@
     'zhidao':         'https://zhidao.baidu.com/search?word=',
     'zhidao_mobile':  'https://zhidao.baidu.com/search?word=',
     'tieba':          'https://tieba.baidu.com/f/search/res?qw=',
-    'quark_cn':       'https://quark.sm.cn/s?q=',
     'sogou_weixin':   'https://weixin.sogou.com/weixin?type=2&query=',
     'weibo_mobile':   'https://s.weibo.com/weibo?q='
   };
@@ -1211,12 +1210,17 @@
   });
 
   /* 取每行的数据（url / 关键词 / 引擎 id） */
+  function getDataset(element) {
+    return element && element.dataset ? element.dataset : {};
+  }
+
   function collectRowItems(rows) {
     return rows.map(function (r) {
+      var data = getDataset(r);
       return {
-        url: (r.dataset.url || '').trim(),
-        keyword: (r.dataset.keyword || '').trim(),
-        srcId: (r.dataset.srcId || '').trim()
+        url: (data.url || '').trim(),
+        keyword: (data.keyword || '').trim(),
+        srcId: (data.srcId || '').trim()
       };
     });
   }
@@ -1265,8 +1269,15 @@
       var cnt = 0;
       items.forEach(function (it) {
         if (!it.keyword) { return; }
-        var base = ENGINE_URL[it.srcId] || ENGINE_URL['baidu'];
-        window.pywebview.api.open_url(base + encodeURIComponent(it.keyword));
+        if (it.srcId === 'quark_cn') {
+          window.pywebview.api.open_manual_quark_search(
+            it.srcId,
+            encodeURIComponent(it.keyword)
+          );
+        } else {
+          var base = ENGINE_URL[it.srcId] || ENGINE_URL['baidu'];
+          window.pywebview.api.open_url(base + encodeURIComponent(it.keyword));
+        }
         cnt++;
       });
       if (cnt === 0) { window.appendLog('[提示] 这些行没有关键词信息'); }
@@ -1317,12 +1328,13 @@
   }
 
   function compareRowsByDisplayOrder(a, b) {
+    if (!a || !b) { return a ? -1 : (b ? 1 : 0); }
     var aWhite = !!(a.classList && a.classList.contains('row-white'));
     var bWhite = !!(b.classList && b.classList.contains('row-white'));
     if (aWhite !== bWhite) { return aWhite ? 1 : -1; }
 
-    var da = parseDateKey(a.dataset.date || '');
-    var db = parseDateKey(b.dataset.date || '');
+    var da = parseDateKey(getDataset(a).date || '');
+    var db = parseDateKey(getDataset(b).date || '');
     if (!da && !db) { return 0; }
     if (!da) { return 1; }
     if (!db) { return -1; }
@@ -1368,8 +1380,8 @@
 
     function sortByDateDesc(rows) {
       rows.sort(function (a, b) {
-        var da = parseDateKey(a.dataset.date || '');
-        var db = parseDateKey(b.dataset.date || '');
+        var da = parseDateKey(getDataset(a).date || '');
+        var db = parseDateKey(getDataset(b).date || '');
         if (!da && !db) { return 0; }
         if (!da) { return 1; }      // a 无日期 → 排后面
         if (!db) { return -1; }     // b 无日期 → 排后面
@@ -1407,16 +1419,18 @@
   };
 
   function applyFilterToRow(r) {
-    var src = r.dataset.source || '';
+    if (!r) { return; }
+    var data = getDataset(r);
+    var src = data.source || '';
     var allowedSrcs = TAB_GROUPS[_currentTabFilter] || [_currentTabFilter];
     var tabOK = (_currentTabFilter === TAB_ALL) || (allowedSrcs.indexOf(src) >= 0);
 
     var textOK = true;
     if (_searchBoxFilter) {
       var hay = (
-        (r.dataset.title || '') + ' ' +
-        (r.dataset.summary || '') + ' ' +
-        (r.dataset.url || '')
+        (data.title || '') + ' ' +
+        (data.summary || '') + ' ' +
+        (data.url || '')
       ).toLowerCase();
       textOK = hay.indexOf(_searchBoxFilter) >= 0;
     }
@@ -1664,12 +1678,13 @@
       Array.prototype.forEach.call(
         tableBody.querySelectorAll('.table-row'),
         function (r) {
-          if (r.style.display === 'none') { return; }   // 被筛掉的不导出
-          var url = (r.dataset.url || '').trim();
+          if (!r || r.style.display === 'none') { return; }   // 被筛掉的不导出
+          var data = getDataset(r);
+          var url = (data.url || '').trim();
           if (!url) { return; }
           rows.push({
-            book: r.dataset.book || '',
-            source: r.dataset.source || '',
+            book: data.book || '',
+            source: data.source || '',
             url: url,
           });
         }
@@ -1936,16 +1951,18 @@
     if (!apiReady()) { return; }
     var tasks = [];
     allRows().forEach(function (row) {
-      var text = (row.dataset.title || '') + ' ' +
-                 (row.dataset.summary || '') + ' ' +
-                 (row.dataset.url || '');
+      if (!row) { return; }
+      var data = getDataset(row);
+      var text = (data.title || '') + ' ' +
+                 (data.summary || '') + ' ' +
+                 (data.url || '');
       tasks.push(window.pywebview.api.check_whitelist_word(text).then(function (hit) {
         if (hit) {
           row.classList.add('row-white');
-          row.dataset.wlWord = '1';
-        } else if (row.dataset.wlWord === '1') {
-          delete row.dataset.wlWord;
-          if (row.dataset.whiteCommon !== '1') {
+          data.wlWord = '1';
+        } else if (data.wlWord === '1') {
+          delete data.wlWord;
+          if (data.whiteCommon !== '1') {
             row.classList.remove('row-white');
           }
         }
@@ -2183,7 +2200,8 @@
     // 勾选切换
     popup.querySelectorAll('.sf-cb').forEach(function (cb) {
       cb.addEventListener('change', function () {
-        var idx = parseInt(cb.dataset.idx, 10);
+        var idx = parseInt(getDataset(cb).idx, 10);
+        if (isNaN(idx) || idx < 0 || idx >= bm.suffixes.length) { return; }
         bm.suffixes[idx].enabled = cb.checked;
         saveSuffixes(bm, false);
       });
@@ -2192,7 +2210,8 @@
     // 删除
     popup.querySelectorAll('.sf-del').forEach(function (el) {
       el.addEventListener('click', function () {
-        var idx = parseInt(el.dataset.idx, 10);
+        var idx = parseInt(getDataset(el).idx, 10);
+        if (isNaN(idx) || idx < 0 || idx >= bm.suffixes.length) { return; }
         bm.suffixes.splice(idx, 1);
         saveSuffixes(bm, true);       // true = 重新渲染浮层
       });

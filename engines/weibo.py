@@ -10,6 +10,8 @@ class WeiboEngine(BaseEngine):
     SEARCH_URL = 'https://s.weibo.com/realtime?q={kw}&rd=realtime&tw=realtime&Refer=weibo_realtime'
     EXTRA_URL = 'https://service.account.weibo.com/rights/movie'   # 微博版权投诉页
     RANDOM_WAIT_RANGE = (2, 4)
+    CAPTCHA_URL_TOKENS = ('captcha', 'verify')
+    CAPTCHA_TEXT_TOKENS = ('验证码', '人机验证')
 
     def _build_search_url(self, term, page_num):
         return f"https://s.weibo.com/realtime?q={quote(term)}&rd=realtime&tw=realtime&Refer=weibo_realtime"
@@ -26,7 +28,13 @@ class WeiboEngine(BaseEngine):
 
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '').lower()
-            if 'captcha' in cur or 'verify' in cur or '验证码' in body_text or '人机验证' in body_text:
+            if self.detect_captcha(
+                page,
+                url_tokens=self.CAPTCHA_URL_TOKENS,
+                text_tokens=self.CAPTCHA_TEXT_TOKENS,
+                url_text=cur,
+                body_text=body_text,
+            ):
                 self.pause_for_user('微博搜索要求验证码/登录。提示：未登录访客态下微博会降级为【综合排序】（结果含旧帖），登录后可获得【实时排序】')
                 return []
 

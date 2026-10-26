@@ -10,6 +10,8 @@ class So360MobileEngine(BaseEngine):
     SEARCH_URL = 'https://m.so.com/s?q={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
     RANDOM_WAIT_RANGE = (2, 4)
+    CAPTCHA_URL_TOKENS = ("captcha", "verify", "wappass")
+    CAPTCHA_TEXT_TOKENS = ("验证码", "人机验证")
 
     def _build_search_url(self, term, page_num):
         offset = self.page_offset(page_num, 10, 0)
@@ -27,7 +29,13 @@ class So360MobileEngine(BaseEngine):
 
             cur = (page.url or '').lower()
             body_text = (page.text_content('body') or '').lower()
-            if 'captcha' in cur or 'verify' in cur or 'wappass' in cur or '验证码' in body_text or '人机验证' in body_text:
+            if self.detect_captcha(
+                page,
+                url_tokens=self.CAPTCHA_URL_TOKENS,
+                text_tokens=self.CAPTCHA_TEXT_TOKENS,
+                url_text=cur,
+                body_text=body_text,
+            ):
                 self.pause_for_user('360移动搜索要求验证码/登录')
                 return []
 

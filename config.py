@@ -5,6 +5,30 @@ import re
 # ==================== 默认模式 ====================
 DEFAULT_HEADLESS = True
 
+# 夸克入口地址：搜索/补全地址由引擎使用，手动搜索地址保持当前界面行为。
+QUARK_ENTRYPOINTS = {
+    'quark': {
+        'search_url': 'https://quark.sm.cn/s?q={kw}',
+        'home_base': 'https://quark.sm.cn',
+        'manual_search_url': None,
+    },
+    'quark_cn': {
+        'search_url': 'https://www.quark.cn/s?q={kw}',
+        'home_base': 'https://www.quark.cn',
+        'manual_search_url': 'https://quark.sm.cn/s?q=',
+    },
+    'quark_m': {
+        'search_url': 'https://m.sm.cn/s?q={kw}',
+        'home_base': 'https://m.sm.cn',
+        'manual_search_url': None,
+    },
+    'quark_so': {
+        'search_url': 'https://so.m.sm.cn/s?q={kw}',
+        'home_base': 'https://so.m.sm.cn',
+        'manual_search_url': None,
+    },
+}
+
 # ==================== 路径 ====================
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(sys.executable)
@@ -136,7 +160,6 @@ MANUAL_SOURCE_COLUMNS = 2
 # 顺序（作者指定）：百度、百度m、知道、知道m、贴吧、必应、夸克、夸克m、头条、头条m、
 #                   微博、微博m、搜狗、搜狗m、360、360m、微信
 # 同一个引擎有 PC 版和手机版时：PC 版在前、手机版（名字带 m）紧随其后
-# 夸克两个入口：夸克 = quark.sm.cn，夸克m = m.sm.cn
 # 「按搜索引擎」那一栏是从上到下按同一顺序排
 # 以后新增的引擎接着往后排
 MANUAL_SOURCE_ORDER = [

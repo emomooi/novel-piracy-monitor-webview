@@ -9,6 +9,8 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from utils import filter_summary, normalize_date, strip_date_from_text
 
+_UNSET = object()
+
 
 class BaseEngine:
     """所有搜索引擎的基类"""
@@ -30,6 +32,55 @@ class BaseEngine:
 
     def pause_for_user(self, reason):
         self.app.pause_for_user(reason)
+
+    def detect_captcha(
+        self,
+        page,
+        url_tokens=(),
+        text_tokens=(),
+        dom_selectors=(),
+        suppress_if=None,
+        *,
+        url_text=_UNSET,
+        body_text=_UNSET,
+    ):
+        """Return matching (kind, feature) pairs without imposing site policy."""
+        hits = []
+        if url_tokens:
+            current_url = page.url if url_text is _UNSET else url_text
+            current_url = str(current_url or "").lower()
+            hits.extend(
+                ("url", token)
+                for token in url_tokens
+                if token.lower() in current_url
+            )
+
+        if text_tokens:
+            current_text = (
+                page.text_content("body") if body_text is _UNSET else body_text
+            )
+            current_text = str(current_text or "").lower()
+            text_hits = [
+                ("text", token)
+                for token in text_tokens
+                if token.lower() in current_text
+            ]
+            if text_hits and not hits and suppress_if and suppress_if():
+                return []
+            hits.extend(text_hits)
+
+        if dom_selectors:
+            found = page.evaluate(
+                """selectors => selectors.some(selector =>
+                    Array.from(document.querySelectorAll(selector))
+                        .some(element => element.offsetParent !== null)
+                )""",
+                list(dom_selectors),
+            )
+            if found:
+                hits.extend(("dom", selector) for selector in dom_selectors)
+
+        return hits
 
     def should_stop(self):
         should_stop = getattr(self.app, "should_stop", None)
