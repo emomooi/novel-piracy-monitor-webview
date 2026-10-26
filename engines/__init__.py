@@ -59,7 +59,8 @@ TEST_ENGINE_MAP = {
 
 
 # 手动搜索：按 MANUAL_SOURCE_ORDER 排序展示；
-# 夸克保留 quark.sm.cn（夸克m）+ quark_cn（主程序夸克）两个入口，quark_m / quark_so 不显示
+# 手动搜索保留 quark.sm.cn（夸克m）+ quark_cn 两个入口；主程序抓取 quark_cn 使用 www.quark.cn
+# quark_m / quark_so 不显示
 MANUAL_SEARCH_ENGINE_MAP = {
     sid: cls for sid, cls in ALL_ENGINE_MAP.items()
     if sid not in MANUAL_HIDDEN_SOURCES

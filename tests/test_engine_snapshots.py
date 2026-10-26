@@ -176,9 +176,9 @@ class EngineSnapshotTests(unittest.TestCase):
                             expected,
                         )
 
-    def test_main_quark_source_uses_quark_sm_cn(self):
+    def test_main_quark_source_uses_www_quark_cn(self):
         quark_cn_engine = ENGINE_MAP["quark_cn"]
-        self.assertEqual(urlsplit(quark_cn_engine.SEARCH_URL).hostname, "quark.sm.cn")
+        self.assertEqual(urlsplit(quark_cn_engine.SEARCH_URL).hostname, "www.quark.cn")
 
 
 if __name__ == "__main__":

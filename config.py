@@ -104,7 +104,7 @@ SOURCE_GROUPS = {
 
 # 待测监控来源（测试专用程序只保留这些）
 # 夸克 4 个入口放一起
-# （quark.sm.cn 主程序里已用，这里一起测作对照）
+# （主程序抓取使用 www.quark.cn；quark.sm.cn 在这里作为对照入口）
 TEST_SRC_ORDER = [
     'quark', 'quark_m', 'quark_so', 'quark_cn',
     'weibo', 'weibo_mobile',
@@ -171,7 +171,7 @@ MANUAL_SOURCE_LABEL = {
     'quark_cn': '夸克',
 }
 
-# 手动搜索里不显示的来源（夸克只留主程序 quark.sm.cn + quark.sm.cn 对照入口，
+# 手动搜索里不显示的来源（quark_cn 的后端抓取使用 www.quark.cn；手动打开链接仍按前端映射，
 # m.sm.cn / so.m.sm.cn 不显示；想换入口就改 MANUAL_SOURCE_ORDER 和这里）
 MANUAL_HIDDEN_SOURCES = ('quark_m', 'quark_so')
 
