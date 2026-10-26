@@ -536,6 +536,18 @@ class WebViewAppAdapter:
             self.keep_page = False
 
 
+def _max_pages_for_engine(engine_id, pages, api=None):
+    if engine_id in ("quark", "quark_cn", "toutiao_pc"):
+        return 1
+    if pages == "auto" or pages == "":
+        return 10
+    try:
+        return max(1, int(pages))
+    except Exception as exc:  # noqa: BLE001
+        _log_suppressed_error("页数设置解析失败，回退到 10 页", exc, api)
+        return 10
+
+
 class Api:
     """暴露给 JS 的 Python 接口。
 
@@ -1104,6 +1116,10 @@ class Api:
         adapter.keep_page = False
         try:
             engine = ENGINE_MAP[engine_id](adapter)
+            if engine_id == "toutiao_pc":
+                self.push_log(
+                    "头条PC 翻页会触发风控（实测带分页参数会返回空页），本轮只取第一页"
+                )
             page_num = 0
             captcha_retry = 0
             previous_page_signature = None
@@ -1274,17 +1290,8 @@ class Api:
 
                     self.push_log(f"第 {i}/{total} 个引擎：{label}")
 
-                    # 页数：夸克不翻页；auto / 空 = 10 页
-                    if engine_id in ("quark", "quark_cn"):
-                        max_pages = 1
-                    elif pages == "auto" or pages == "":
-                        max_pages = 10
-                    else:
-                        try:
-                            max_pages = max(1, int(pages))
-                        except Exception as exc:                  # noqa: BLE001
-                            _log_suppressed_error("页数设置解析失败，回退到 10 页", exc, self)
-                            max_pages = 10
+                    # 夸克与头条PC不翻页；auto / 空 = 10 页
+                    max_pages = _max_pages_for_engine(engine_id, pages, self)
 
                     all_results_count, job_matched = self._run_one_engine(
                         adapter, context, engine_id, src_id, label,

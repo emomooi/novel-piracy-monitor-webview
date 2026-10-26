@@ -21,7 +21,7 @@ from utils import log_suppressed_error
 class ToutiaoPCEngine(BaseEngine):
     SOURCE_ID = 'toutiao_pc'
     SOURCE_LABEL = '头条PC'
-    SEARCH_URL = 'https://so.toutiao.com/search?keyword={kw}'
+    SEARCH_URL = 'https://so.toutiao.com/search?dvpf=pc&keyword={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
     RANDOM_WAIT_RANGE = (4, 6)
 
@@ -31,7 +31,10 @@ class ToutiaoPCEngine(BaseEngine):
     def _build_search_url(self, term, page_num):
         normalized_page = max(0, int(page_num or 0))
         offset = self.page_offset(normalized_page, 10, 0)
-        return f"https://so.toutiao.com/search?keyword={quote(term)}&offset={offset}"
+        return (
+            f"https://so.toutiao.com/search?dvpf=pc&source=input"
+            f"&keyword={quote(term)}&offset={offset}&enable_druid_v2=1"
+        )
 
     @staticmethod
     def _decode_real_url(href):
