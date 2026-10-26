@@ -1,0 +1,586 @@
+
+  /* ==================== 变量 ==================== */
+  :root {
+    --primary: #2A9D8F;          /* 主色：按钮、强调 */
+    --primary-soft: #E8F5F3;     /* 主色浅底：次级按钮 */
+    --primary-soft-fg: #1F6B60;  /* 主色浅底上的字色 */
+    --bg: #F0F2F5;               /* 页面背景 */
+    --card: #FFFFFF;             /* 卡片 */
+    --radius: 8px;
+    --radius-sm: 6px;
+    --text: #2F3542;
+    --text-dim: #7A869A;
+    --muted: #9AA5B1;
+    --disabled-bg: #ECEFF1;
+    --border: #E8EBEE;
+    --input-bg: #F7F8FA;
+    --line: #F0F2F5;             /* 表格行分隔线 */
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    padding: 12px;                /* 同 Flet page.padding=12 */
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Microsoft YaHei", "微软雅黑", "PingFang SC", "Hiragino Sans GB", sans-serif;
+    font-size: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;                     /* 同 Flet page.spacing=8 */
+  }
+
+  /* ==================== 卡片 ==================== */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 8px;                 /* 同 Flet card() padding=8 */
+    width: 100%;
+    flex: 0 0 auto;
+    /* 窗口太窄时整行可横向滚动，避免按钮被裁掉 */
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  /* 表格卡：吃掉剩余高度，其余卡片高度固定 */
+  .card.grow {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 卡片内的浅灰分隔线（卡A：顶栏 / 来源 / 书签 之间） */
+  .hdiv {
+    height: 1px;
+    background: var(--line);
+    margin: 6px 0;
+    flex: 0 0 auto;
+  }
+
+  /* ==================== 通用行 ==================== */
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .row.tight { gap: 18px; }
+
+  .spacer { flex: 1 1 auto; }
+
+  /* ==================== 按钮 ==================== */
+  .btn {
+    height: 40px;
+    padding: 0 16px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .btn-primary { background: var(--primary); color: #FFFFFF; }
+
+  /* 保存为书签 */
+  .btn-soft { background: var(--primary-soft); color: var(--primary-soft-fg); }
+
+  /* 清 cookies */
+  .btn-soft-green { background: var(--primary-soft); color: var(--primary); }
+
+  /* 停止 / 我已过验证，继续（当前都是禁用态） */
+  .btn-disabled { background: var(--disabled-bg); color: var(--muted); }
+
+  /* 停止按钮「启用」时的红色 */
+  .btn-danger { background: #E63946; color: #FFFFFF; }
+
+  .btn:disabled,
+  .btn-sm:disabled,
+  .btn-xs:disabled { cursor: not-allowed; }
+
+  /* 纯文字按钮：来源行的「全选 / 取消」 */
+  .btn-text {
+    height: 28px;
+    padding: 0 8px;
+    border: none;
+    background: transparent;
+    color: var(--primary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 400;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  /* 工具栏小按钮：高 28、字号 12 */
+  .btn-sm {
+    height: 28px;
+    padding: 0 10px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--primary-soft);
+    color: var(--primary-soft-fg);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 400;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .btn-sm-green { background: var(--primary); color: #FFFFFF; }
+  .btn-sm-gray  { background: var(--disabled-bg); color: #455A64; }
+
+  .btn-sm-quiet {
+    background: #F5F7FA;
+    color: #9AA5B1;
+  }
+  .btn-sm-quiet:hover {
+    background: #ECEFF1;
+  }
+
+  /* 工具栏竖线：1px 高 20，左右各 6px */
+  .sep {
+    width: 1px;
+    height: 20px;
+    background: #D0D5DD;
+    margin: 0 6px;
+    flex: 0 0 auto;
+  }
+
+  /* ==================== 输入框 ==================== */
+  .input {
+    height: 40px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--input-bg);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+    flex: 0 0 auto;
+  }
+
+  .input::placeholder { color: var(--muted); }
+
+  .input-book   { width: 240px; }
+  .input-pages  { width: 48px; height: 32px; padding: 0 4px; font-size: 12px;
+                  text-align: center; background: #FFFFFF; }
+  .input-search { width: 220px; height: 32px; padding: 0 6px; font-size: 12px;
+                  background: #FFFFFF; flex: 0 1 220px; min-width: 96px; }
+
+  /* ==================== 文字标签 ==================== */
+  .label      { font-size: 13px; color: var(--text-dim); white-space: nowrap; }
+  .label-main { font-size: 14px; color: var(--text); white-space: nowrap; }
+
+  /* ==================== 小开关 ==================== */
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+    flex: 0 0 auto;
+  }
+
+  .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+  .switch .track {
+    position: absolute;
+    inset: 0;
+    background: #CFD8DC;
+    border-radius: 999px;
+    transition: background .15s;
+  }
+
+  .switch .track::before {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 2px;
+    top: 2px;
+    background: #FFFFFF;
+    border-radius: 50%;
+    transition: transform .15s;
+  }
+
+  .switch input:checked + .track { background: var(--primary); }
+  .switch input:checked + .track::before { transform: translateX(16px); }
+
+  /* ==================== 书签胶囊 ==================== */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 3px 12px;
+    border-radius: 14px;
+    background: var(--disabled-bg);
+    color: var(--text-dim);
+  }
+
+  .chip .chip-name  { font-size: 13px; font-weight: 700; }
+  .chip .chip-count { font-size: 12px; margin-left: 8px; }
+  .chip .chip-arrow { font-size: 9px;  margin-left: 4px;
+                      padding: 2px 4px; border-radius: 4px; }
+
+  /* 书签胶囊（批 3-A：可选中） */
+  .bm-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border-radius: 14px;
+    background: #ECEFF1;      /* 未选中：灰 */
+    color: #7A869A;
+    cursor: pointer;
+    font-size: 13px;
+    user-select: none;
+    margin: 4px 8px 4px 0;    /* 换行间距 */
+  }
+
+  .bm-chip.selected {
+    background: #E8F5F3;      /* 选中：浅绿 */
+    color: #2A9D8F;
+  }
+
+  .bm-chip .bm-count { font-size: 12px; }
+
+  .bm-chip .bm-arrow { font-size: 9px; margin-left: 2px; }
+
+  /* 书签右键菜单 */
+  .bm-menu-item {
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .bm-menu-item:hover {
+    background: #F0F2F5;
+  }
+
+  /* ==================== 后缀浮层（批 3-B） ==================== */
+  .sf-popup-title { font-size: 12px; color: #7A869A; margin-bottom: 8px; }
+
+  .sf-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    font-size: 13px;
+  }
+
+  .sf-item label { flex: 1; cursor: pointer; user-select: none; }
+
+  .sf-item .sf-del {
+    color: #E63946;
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 14px;
+  }
+
+  .sf-item .sf-del:hover { background: #FFEEEE; border-radius: 4px; }
+
+  .sf-add-row { display: flex; gap: 6px; margin-top: 8px; }
+
+  .sf-add-row input {
+    flex: 1;
+    padding: 4px 8px;
+    border: 1px solid #E8EBEE;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+
+  .sf-add-row button {
+    padding: 4px 12px;
+    background: #2A9D8F;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  /* ==================== 来源勾选框 ==================== */
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--text);
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .check input {
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    accent-color: var(--primary);
+  }
+
+  /* ==================== 表格 ==================== */
+  /* 表格区：吃掉卡B剩余高度、内部滚动，保证底部页签不被挤出屏幕 */
+  .table-scroll {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: auto;
+  }
+
+  .table-inner { min-width: 1190px; }
+
+  /* 框选蓝框（批 4-A-2） */
+  #dragBox { box-sizing: border-box; }
+
+  /* 框选中禁止选中文字，免得拖框时把文字刷蓝 */
+  body.dragging { user-select: none; }
+
+  .table-head {
+    display: flex;
+    background: var(--input-bg);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  .th {
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .table-row {
+    display: flex;
+    border-bottom: 1px solid var(--line);   /* 每行底部浅灰分隔线 */
+    cursor: default;                        /* 表格区默认箭头（批 4-A-3） */
+  }
+
+  /* 只有 URL 和 ⋯ 按钮是手型 */
+  .table-row a { cursor: pointer; }
+  .col-menu, .row-menu, .bm-arrow { cursor: pointer; }
+
+  /* 行选中（批 4-A-1）：整行浅绿底 */
+  .table-row.row-selected {
+    background: #E8F5F3;
+  }
+
+  .table-row.row-selected:hover {
+    background: #D6EDE8;   /* 深一点的绿，鼠标悬停更明显 */
+  }
+
+  /* 行右键 / ⋯ 菜单项（批 4-A-3） */
+  .row-menu-item {
+    padding: 6px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    color: #2F3542;
+    user-select: none;
+  }
+
+  .row-menu-item:hover { background: #F0F2F5; }
+
+  .row-menu-item.danger { color: #E63946; }
+
+  .row-menu-sep {
+    height: 1px;
+    background: #F0F2F5;
+    margin: 4px 0;
+  }
+
+  .td {
+    padding: 8px;
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 表格里的 url 列：蓝色可点链接 */
+  .row-link {
+    color: #1A73E8;
+    text-decoration: none;
+  }
+
+  .row-link:hover { text-decoration: underline; }
+
+  /* 列宽（表头 / 数据行共用） */
+  .col-check  { flex: 0 0 32px;  width: 32px; display: flex; align-items: center; justify-content: center; }
+  .col-src    { flex: 0 0 80px;  width: 80px; }
+  .col-title  { flex: 0 0 320px; width: 320px; }
+  .col-date   { flex: 0 0 110px; width: 110px; }
+  .col-abs    { flex: 0 0 380px; width: 380px; }
+  .col-url    { flex: 0 0 260px; width: 260px; }
+  .col-menu   { flex: 0 0 40px;  width: 40px; }
+
+  /* 行勾选框 */
+  .row-check { cursor: pointer; }
+
+  /* 已加白名单的行：文字整体灰化 */
+  .row-white .td,
+  .row-white .row-link { color: #9AA5B1; }
+
+  /* ==================== 来源页签 ==================== */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    overflow-x: auto;
+    flex-shrink: 0;             /* 固定在底部，不被表格内容压出屏幕 */
+  }
+
+  .tab {
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .tab.active {
+    color: var(--primary);
+    font-weight: 700;
+    border-top: 2px solid var(--primary);
+  }
+
+  /* ==================== 日志区 ==================== */
+  .log {
+    height: 180px;
+    background: #1E272E;
+    border-radius: var(--radius);
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;             /* 滚动交给 .log-body */
+  }
+
+  /* 日志区右上角的小工具条（开始 / 停止心跳） */
+  .log-bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 6px 8px;
+    background: #1E272E;
+  }
+
+  .log-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0 8px 8px;
+  }
+
+  .log-line {
+    font-size: 12px;
+    line-height: 1.5;
+    color: #E8F0F2;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-family: Consolas, "Microsoft YaHei", "PingFang SC", monospace;
+  }
+
+  .log-line.alert { color: #FF6B6B; }
+
+  .log-line.warn {
+    background: #3D1A1A;
+    color: #FFB4B4;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin: 2px 0;
+  }
+
+  /* 日志区小按钮：高 22、字号 12 */
+  .btn-xs {
+    height: 22px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 400;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .btn-xs-green { background: var(--primary); color: #FFFFFF; }
+  .btn-xs-gray  { background: var(--disabled-bg); color: #455A64; }
+
+  /* ==================== 验证码弹窗 ==================== */
+  /* 前台模式撞验证码时由 Python 调 window.showCaptchaDialog(reason) 唤起 */
+  .mask {
+    position: fixed;
+    inset: 0;                     /* 铺满整个窗口 */
+    background: rgba(0, 0, 0, 0.45);
+    display: none;                /* 默认藏起来，.show 时才显示 */
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+
+  .mask.show { display: flex; }
+
+  .dialog {
+    width: 420px;
+    background: #FFFFFF;
+    border-radius: 8px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+    padding: 18px 20px 16px;
+  }
+
+  .dialog-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .dialog-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-dim);
+    word-break: break-all;
+    margin-bottom: 16px;
+  }
+
+  .dialog-btns {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  /* 白名单词弹窗的多行输入框 */
+  .dialog-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 240px;
+    resize: vertical;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text);
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 16px;
+  }

@@ -2,6 +2,7 @@
 
 import re
 import unittest
+from html.parser import HTMLParser
 from pathlib import Path
 
 
@@ -9,19 +10,37 @@ INDEX_HTML = Path(__file__).resolve().parents[1] / "index.html"
 DIRECT_DATASET_ACCESS = re.compile(r"\b(?:r|a|b|row|cb|el)\.dataset(?:\.|\b)")
 
 
+class ScriptSourceParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.sources = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() == "script":
+            attributes = dict(attrs)
+            if attributes.get("src"):
+                self.sources.append(attributes["src"])
+
+
 class FrontendDatasetSafetyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.html = INDEX_HTML.read_text(encoding="utf-8")
+        parser = ScriptSourceParser()
+        parser.feed(cls.html)
+        cls.js_source = "\n".join(
+            (INDEX_HTML.parent / source).resolve().read_text(encoding="utf-8")
+            for source in parser.sources
+        )
 
     def source_between(self, start, end):
-        start_index = self.html.index(start)
-        end_index = self.html.index(end, start_index)
-        return self.html[start_index:end_index]
+        start_index = self.js_source.index(start)
+        end_index = self.js_source.index(end, start_index)
+        return self.js_source[start_index:end_index]
 
     def test_dataset_helper_checks_element_and_dataset(self):
         self.assertRegex(
-            self.html,
+            self.js_source,
             re.compile(
                 r"function getDataset\(element\)\s*\{\s*"
                 r"return element && element\.dataset \? element\.dataset : \{\};\s*\}"

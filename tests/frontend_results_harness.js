@@ -1,17 +1,20 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const path = require('node:path');
 const vm = require('node:vm');
 
-// 仓库以 LF 归档、检出到工作区会被 git 转成 CRLF；这里统一归一化，
-// 让断言不依赖工作区的行尾形式（否则新克隆后测试会误报失败）。
-const html = fs.readFileSync(process.argv[2], 'utf8').replace(/\r\n/g, '\n');
+// 从实际加载的拆分脚本中提取代码；统一行尾以兼容不同工作区设置。
+const appSource = fs.readFileSync(
+  path.join(__dirname, '..', 'js', 'app.js'),
+  'utf8',
+).replace(/\r\n/g, '\n');
 
 function between(start, end) {
-  const first = html.indexOf(start);
-  const last = html.indexOf(end, first);
+  const first = appSource.indexOf(start);
+  const last = appSource.indexOf(end, first);
   assert.notEqual(first, -1, `missing source marker: ${start}`);
   assert.notEqual(last, -1, `missing end marker: ${end}`);
-  return html.slice(first, last);
+  return appSource.slice(first, last);
 }
 
 const source = [
