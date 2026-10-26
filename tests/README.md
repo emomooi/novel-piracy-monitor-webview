@@ -12,6 +12,7 @@
 - `test_concurrency.py`：验证历史记录、白名单和书签在并发读写下保持安全与完整。
 - `test_engine_diagnostics.py`：验证空页诊断会进入界面日志、正常命中不增加诊断日志。
 - `test_engine_snapshots.py`：锁定各引擎搜索 URL 的构造和页码参数。
+- `test_engine_wait.py`：验证随机等待可中断、等待时长保持不变，并可安全兼容未提供停止接口的假 app。
 - `test_frontend_results.py`：比较前端增量插入结果与原有整表刷新行为。
 - `test_history_whitelist.py`：验证历史记录加载时正确补充白名单状态。
 - `test_serialization.py`：锁定白名单与搜索历史的 JSON 序列化结构。

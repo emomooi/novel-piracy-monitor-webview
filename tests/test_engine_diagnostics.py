@@ -1,7 +1,9 @@
 """验证引擎诊断只在空页时转发到界面日志。"""
 
+import ast
 import threading
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
@@ -9,7 +11,9 @@ import main
 
 
 class EngineDiagnosticsTests(unittest.TestCase):
-    def _run_fake_engine(self, diagnostics, page_results, matched_count=1):
+    def _run_fake_engine(
+        self, diagnostics, page_results, matched_count=1, fetch_error=None
+    ):
         logs = []
 
         class FakeEngine:
@@ -17,6 +21,8 @@ class EngineDiagnosticsTests(unittest.TestCase):
                 self.diagnostics = list(diagnostics)
 
             def fetch(self, context, term, page_num=0, book_kw=""):
+                if fetch_error is not None:
+                    raise fetch_error
                 return page_results
 
         api = main.Api()
@@ -83,6 +89,17 @@ class EngineDiagnosticsTests(unittest.TestCase):
         self.assertEqual(logs, [])
         api._emit_page_results.assert_called_once()
 
+    def test_fetch_exception_keeps_error_log_without_diagnostic_log(self):
+        result, logs, _ = self._run_fake_engine(
+            ["此前诊断"], [], fetch_error=RuntimeError("fake fetch failure")
+        )
+
+        self.assertEqual(result, (0, 0))
+        self.assertEqual(
+            logs,
+            ["测试来源 第 1 页出错：fake fetch failure"],
+        )
+
     def test_zero_matches_keeps_existing_log_and_appends_diagnostic(self):
         result, logs, _ = self._run_fake_engine(
             ["结果未匹配"], [{"title": "结果", "url": "https://example.test"}],
@@ -97,6 +114,25 @@ class EngineDiagnosticsTests(unittest.TestCase):
                 "测试来源 第 1 页诊断：结果未匹配",
             ],
         )
+
+    def test_engine_note_messages_are_nonempty_and_unique(self):
+        engine_dir = Path(__file__).resolve().parents[1] / "engines"
+        messages = []
+        for source_path in engine_dir.glob("*.py"):
+            tree = ast.parse(source_path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                if not isinstance(node.func, ast.Attribute) or node.func.attr != "note":
+                    continue
+                self.assertTrue(node.args, f"{source_path.name}:{node.lineno}")
+                message = node.args[0]
+                self.assertIsInstance(message, ast.Constant)
+                self.assertIsInstance(message.value, str)
+                self.assertTrue(message.value.strip(), f"{source_path.name}:{node.lineno}")
+                messages.append(message.value)
+
+        self.assertEqual(len(messages), len(set(messages)))
 
 
 if __name__ == "__main__":

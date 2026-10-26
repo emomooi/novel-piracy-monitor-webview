@@ -139,20 +139,26 @@ class EngineSnapshotTests(unittest.TestCase):
             with self.subTest(wait_engine=engine_class.__name__):
                 min_seconds, max_seconds = engine_class.RANDOM_WAIT_RANGE
                 self.assertLessEqual(min_seconds, max_seconds)
+                clock = [0.0]
+
+                def fake_sleep(seconds):
+                    clock[0] += seconds
+
                 with (
                     patch("engines.base.random.uniform", side_effect=(min_seconds, max_seconds)) as uniform,
-                    patch("engines.base.time.sleep") as sleep,
+                    patch("engines.base.time.monotonic", side_effect=lambda: clock[0]),
+                    patch("engines.base.time.sleep", side_effect=fake_sleep) as sleep,
                 ):
-                    BaseEngine.wait_random(min_seconds, max_seconds)
-                    BaseEngine.wait_random(min_seconds, max_seconds)
+                    engine = BaseEngine(None)
+                    engine.wait_random(min_seconds, max_seconds)
+                    engine.wait_random(min_seconds, max_seconds)
                 self.assertEqual(
                     uniform.call_args_list,
                     [call(min_seconds, max_seconds), call(min_seconds, max_seconds)],
                 )
-                self.assertEqual(
-                    sleep.call_args_list,
-                    [call(min_seconds), call(max_seconds)],
-                )
+                durations = [item.args[0] for item in sleep.call_args_list]
+                self.assertAlmostEqual(sum(durations), min_seconds + max_seconds)
+                self.assertTrue(all(0 < duration <= 0.25 for duration in durations))
 
         for page_num, expected in ((0, 0), (1, 10), (2, 20), (999, 9990)):
             with self.subTest(page_num=page_num):

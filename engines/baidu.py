@@ -98,7 +98,9 @@ class BaiduEngine(BaseEngine):
             """)
 
             self.app._last_fetch_raw_count = len(items) if items else 0
-            if not items: return results
+            if not items:
+                self.note("未解析到百度结果卡片（可能无结果、风控/登录状态异常，或页面结构已变）")
+                return results
 
             for it in items:
                 title_text = it.get('title', '') or ''

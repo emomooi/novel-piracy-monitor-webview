@@ -181,6 +181,7 @@ class ZhidaoMobileEngine(BaseEngine):
                     self.log(f"  [知道手机版] 没有搜到「{term}」的相关结果")
                 else:
                     self.log("  [知道手机版] 页面没解析出结果（可能改版或需要登录）")
+                    self.note("百度知道手机版结果区未解析到条目（可能页面结构已变或登录状态异常）")
                 return results
 
             normalized = []

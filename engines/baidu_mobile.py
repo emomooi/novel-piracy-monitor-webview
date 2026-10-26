@@ -169,7 +169,7 @@ class BaiduMobileEngine(BaseEngine):
 
             self.app._last_fetch_raw_count = len(items) if items else 0
             if not items:
-                self.note("未解析到百度移动版结果卡片（可能是未识别的风控/登录页，或页面结构已变）")
+                self.note("未解析到百度移动版结果卡片（可能无结果、未识别的风控/登录页，或页面结构已变）")
                 return results
 
             for it in items:

@@ -217,6 +217,8 @@ class SogouWeixinEngine(BaseEngine):
 
             raw_items = list(items or [])
             self.app._last_fetch_raw_count = len(raw_items)
+            if not raw_items:
+                self.note("未解析到搜狗微信结果条目（可能无结果、风控/登录状态异常，或页面结构已变）")
 
             # 先按书名过滤，再解析文章地址（解析要开新页面，很慢）
             if book_kw:

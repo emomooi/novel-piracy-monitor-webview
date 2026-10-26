@@ -36,10 +36,17 @@ class BaseEngine:
             return page_num * per_page
         return page_num * per_page + page_base
 
-    @staticmethod
-    def wait_random(min_seconds, max_seconds):
-        """在指定秒数范围内随机等待。"""
-        time.sleep(random.uniform(min_seconds, max_seconds))
+    def wait_random(self, min_seconds, max_seconds):
+        """在指定秒数范围内随机等待，并在停止时尽快中断。"""
+        remaining = random.uniform(min_seconds, max_seconds)
+        deadline = time.monotonic() + remaining
+        should_stop = getattr(self.app, "should_stop", None)
+        while remaining > 0:
+            if callable(should_stop) and should_stop():
+                return
+            sleep_seconds = min(remaining, 0.25)
+            time.sleep(sleep_seconds)
+            remaining = max(0, deadline - time.monotonic())
 
     # 这些页面的定位信息就在查询串里，截断后就打不开了
     KEEP_QUERY_PREFIXES = (
