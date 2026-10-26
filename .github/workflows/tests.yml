@@ -19,6 +19,8 @@ jobs:
         with:
           python-version: '3.13'
           cache: pip
+          # setup-python 的 pip 缓存默认只认 requirements.txt，这里指向实际的文件
+          cache-dependency-path: requirements-dev.txt
 
       - name: Install Python dependencies
         run: python -m pip install -r requirements-dev.txt
