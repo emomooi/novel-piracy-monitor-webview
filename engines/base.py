@@ -16,6 +16,10 @@ class BaseEngine:
 
     def __init__(self, app):
         self.app = app
+        self.diagnostics = []
+
+    def note(self, text):
+        self.diagnostics.append(str(text))
 
     def log(self, msg):
         self.app.log(msg)

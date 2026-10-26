@@ -197,6 +197,7 @@ class QuarkEngine(BaseEngine):
 
             self.app._last_fetch_raw_count = len(items) if items else 0
             if not items:
+                self.note("未解析到夸克结果卡片（可能是风控/需要登录，或页面结构已变）")
                 self.log("  ⚠️ 夸克这一页没抓到结果（可能被风控或需要登录）；"
                          "一直抓不到就切有头模式在浏览器里登录一次")
                 return results
