@@ -2,7 +2,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const html = fs.readFileSync(process.argv[2], 'utf8');
+// 仓库以 LF 归档、检出到工作区会被 git 转成 CRLF；这里统一归一化，
+// 让断言不依赖工作区的行尾形式（否则新克隆后测试会误报失败）。
+const html = fs.readFileSync(process.argv[2], 'utf8').replace(/\r\n/g, '\n');
 
 function between(start, end) {
   const first = html.indexOf(start);
