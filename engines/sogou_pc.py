@@ -11,10 +11,13 @@ class SogouPCEngine(BaseEngine):
     SEARCH_URL = 'https://www.sogou.com/web?query={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
 
+    def _build_search_url(self, term, page_num):
+        return f"https://www.sogou.com/web?query={quote(term)}&page={page_num + 1}"
+
     def fetch(self, context, term, page_num=0, book_kw=''):
         page = None
         try:
-            url = f"https://www.sogou.com/web?query={quote(term)}&page={page_num + 1}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             resp = page.goto(url, wait_until="domcontentloaded", timeout=20000)
             time.sleep(random.uniform(2, 4))

@@ -11,6 +11,10 @@ class ToutiaoMobileEngine(BaseEngine):
     SEARCH_URL = 'https://m.toutiao.com/search?keyword={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
 
+    def _build_search_url(self, term, page_num):
+        offset = max(0, int(page_num or 0)) * 10
+        return f"https://so.toutiao.com/search?keyword={quote(term)}&offset={offset}"
+
     @staticmethod
     def _extract_real_url(href):
         # 头条跳转链接的 url= 参数里往往是个中间页；需要优先解析真实落地页 h5_url
@@ -48,8 +52,7 @@ class ToutiaoMobileEngine(BaseEngine):
         try:
             # ★ 头条分页参数是 offset（每页 10 条），不是 page/page_num；
             #   不带 offset 时服务端永远返回第 1 页，这就是"翻页全是第一页"的根因。
-            offset = max(0, int(page_num or 0)) * 10
-            url = f"https://so.toutiao.com/search?keyword={quote(term)}&offset={offset}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             time.sleep(random.uniform(2, 4))

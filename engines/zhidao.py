@@ -10,11 +10,14 @@ class ZhidaoEngine(BaseEngine):
     SEARCH_URL = 'https://zhidao.baidu.com/search?word={kw}'
     EXTRA_URL = 'https://newcopyright.baidu.com/'
 
+    def _build_search_url(self, term, page_num):
+        return f"https://zhidao.baidu.com/search?word={quote(term)}&pn={page_num * 10}"
+
     def fetch(self, context, term, page_num=0, book_kw=''):
         results = []
         page = None
         try:
-            url = f"https://zhidao.baidu.com/search?word={quote(term)}&pn={page_num * 10}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             time.sleep(random.uniform(3, 5))

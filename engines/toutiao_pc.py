@@ -28,6 +28,11 @@ class ToutiaoPCEngine(BaseEngine):
     # 整个进程只自愈清理一次
     _cookie_cleared = False
 
+    def _build_search_url(self, term, page_num):
+        offset = max(0, int(page_num or 0)) * 10
+        return (f"https://so.toutiao.com/search?dvpf=pc&source=input"
+                f"&keyword={quote(term)}&offset={offset}&enable_druid_v2=1")
+
     @staticmethod
     def _decode_real_url(href):
         """sou.toutiao.com/search/jump?...&url=<encoded> → 真实落地页（可能多层嵌套）"""
@@ -102,9 +107,7 @@ class ToutiaoPCEngine(BaseEngine):
         """抓取一页，返回原始条目（title/href/summary/date）"""
         page = None
         try:
-            offset = max(0, int(page_num or 0)) * 10
-            url = (f"https://so.toutiao.com/search?dvpf=pc&source=input"
-                   f"&keyword={quote(term)}&offset={offset}&enable_druid_v2=1")
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             time.sleep(random.uniform(4, 6))

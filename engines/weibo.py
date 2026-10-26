@@ -11,10 +11,13 @@ class WeiboEngine(BaseEngine):
     SEARCH_URL = 'https://s.weibo.com/realtime?q={kw}&rd=realtime&tw=realtime&Refer=weibo_realtime'
     EXTRA_URL = 'https://service.account.weibo.com/rights/movie'   # 微博版权投诉页
 
+    def _build_search_url(self, term, page_num):
+        return f"https://s.weibo.com/realtime?q={quote(term)}&rd=realtime&tw=realtime&Refer=weibo_realtime"
+
     def fetch(self, context, term, page_num=0, book_kw=''):
         page = None
         try:
-            url = f"https://s.weibo.com/realtime?q={quote(term)}&rd=realtime&tw=realtime&Refer=weibo_realtime"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             time.sleep(random.uniform(2, 4))

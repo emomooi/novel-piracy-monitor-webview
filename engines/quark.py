@@ -31,6 +31,11 @@ class QuarkEngine(BaseEngine):
     LOGIN_TEXT_TOKENS = ('请先登录', '登录后查看', '登录后继续', '请登录',
                          '扫码登录', '账号登录', '登录后即可')
 
+    def _build_search_url(self, term, page_num):
+        offset = max(0, int(page_num or 0)) * 10
+        tpl = self.FETCH_URL or self.SEARCH_URL
+        return tpl.format(kw=quote(term)) + f"&offset={offset}"
+
     # 这一段在页面里找「登录框 / 登录弹窗 / 有没有结果」
     LOGIN_STATE_JS = r"""
         () => {
@@ -96,9 +101,7 @@ class QuarkEngine(BaseEngine):
         results = []
         page = None
         try:
-            offset = max(0, int(page_num or 0)) * 10
-            tpl = self.FETCH_URL or self.SEARCH_URL
-            url = tpl.format(kw=quote(term)) + f"&offset={offset}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             time.sleep(random.uniform(3, 5))

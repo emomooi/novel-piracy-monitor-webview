@@ -25,6 +25,9 @@ class BaiduMobileEngine(BaseEngine):
     SEARCH_URL = 'https://m.baidu.com/s?word={kw}'
     EXTRA_URL = 'https://newcopyright.baidu.com/'
 
+    def _build_search_url(self, term, page_num):
+        return f"https://m.baidu.com/s?word={quote(term)}&pn={page_num * 10}"
+
     # 风控/验证码特征
     CAPTCHA_URL_TOKENS = ('wappass', 'verify', 'captcha', '/punish', 'sec-bot')
     CAPTCHA_TEXT_TOKENS = ('安全验证', '人机验证', '请完成验证', '滑块验证', '验证码拦截')
@@ -58,7 +61,7 @@ class BaiduMobileEngine(BaseEngine):
         results = []
         page = None
         try:
-            url = f"https://m.baidu.com/s?word={quote(term)}&pn={page_num * 10}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             time.sleep(random.uniform(3, 5))

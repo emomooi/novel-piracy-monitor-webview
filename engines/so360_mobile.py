@@ -11,10 +11,13 @@ class So360MobileEngine(BaseEngine):
     SEARCH_URL = 'https://m.so.com/s?q={kw}'
     EXTRA_URL = 'https://mail.qq.com/'
 
+    def _build_search_url(self, term, page_num):
+        return f"https://m.so.com/s?q={quote(term)}&pn={page_num * 10}"
+
     def fetch(self, context, term, page_num=0, book_kw=''):
         page = None
         try:
-            url = f"https://m.so.com/s?q={quote(term)}&pn={page_num * 10}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             time.sleep(random.uniform(2, 4))

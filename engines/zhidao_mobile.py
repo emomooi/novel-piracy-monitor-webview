@@ -24,6 +24,12 @@ class ZhidaoMobileEngine(BaseEngine):
     SEARCH_URL = 'https://zhidao.baidu.com/index/?fr=&word={kw}'
     EXTRA_URL = 'https://newcopyright.baidu.com/'
 
+    def _build_search_url(self, term, page_num):
+        url = self.SEARCH_URL.format(kw=quote(term))
+        if page_num:
+            url += f"&pn={page_num * 10}"
+        return url
+
     # 手机版结果区：认 data-url / 卡片 id，再兜底扫一遍普通链接
     EXTRACT_JS = r"""
         () => {
@@ -144,9 +150,7 @@ class ZhidaoMobileEngine(BaseEngine):
         results = []
         page = None
         try:
-            url = self.SEARCH_URL.format(kw=quote(term))
-            if page_num:
-                url += f"&pn={page_num * 10}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             time.sleep(random.uniform(2.5, 4.5))

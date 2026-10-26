@@ -13,6 +13,9 @@ class SogouWeixinEngine(BaseEngine):
     SEARCH_URL = 'https://weixin.sogou.com/weixin?type=2&query={kw}'
     EXTRA_URL = 'https://mp.weixin.qq.com/'
 
+    def _build_search_url(self, term, page_num):
+        return f"https://weixin.sogou.com/weixin?query={quote(term)}&type=2&ie=utf8&page={page_num + 1}"
+
     @staticmethod
     def _normalize_weixin_link(raw_href):
         """把搜狗微信的 /link?url=... 补成绝对地址。
@@ -130,7 +133,7 @@ class SogouWeixinEngine(BaseEngine):
     def fetch(self, context, term, page_num=0, book_kw=''):
         page = None
         try:
-            url = f"https://weixin.sogou.com/weixin?query={quote(term)}&type=2&ie=utf8&page={page_num + 1}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             time.sleep(random.uniform(2, 4))

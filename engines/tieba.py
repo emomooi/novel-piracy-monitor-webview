@@ -11,10 +11,13 @@ class TiebaEngine(BaseEngine):
     SEARCH_URL = 'https://tieba.baidu.com/f/search/res?ie=utf-8&qw={kw}'
     EXTRA_URL = 'https://newcopyright.baidu.com/'
 
+    def _build_search_url(self, term, page_num):
+        return f"https://tieba.baidu.com/f/search/res?ie=utf-8&qw={quote(term)}&pn={page_num}"
+
     def fetch(self, context, term, page_num=0, book_kw=''):
         page = None
         try:
-            url = f"https://tieba.baidu.com/f/search/res?ie=utf-8&qw={quote(term)}&pn={page_num}"
+            url = self._build_search_url(term, page_num)
             page = self._create_stealth_page(context)
             page.goto(url, wait_until="networkidle", timeout=40000)
             time.sleep(4)
