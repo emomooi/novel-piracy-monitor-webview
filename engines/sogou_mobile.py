@@ -18,7 +18,9 @@ class SogouMobileEngine(BaseEngine):
             # ★ 第 1 页：正常打开
             url = f"https://m.sogou.com/web/searchList.jsp?keyword={quote(term)}"
             page = self._create_stealth_page(context)
-            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            self.goto_with_stop(page, url, wait_until="domcontentloaded", timeout=30000)
+            if self.navigation_stopped:
+                return []
             self.wait_random(*self.RANDOM_WAIT_RANGE)
 
             # ★ 第 2 页及以后：找到「下一页」按钮并点击

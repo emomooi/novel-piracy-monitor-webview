@@ -1,8 +1,11 @@
 # engines/base.py
+import math
 import re
 import random
 import time
 from urllib.parse import urlsplit
+
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from utils import filter_summary, normalize_date, strip_date_from_text
 
@@ -17,6 +20,7 @@ class BaseEngine:
     def __init__(self, app):
         self.app = app
         self.diagnostics = []
+        self._navigation_stopped = False
 
     def note(self, text):
         self.diagnostics.append(str(text))
@@ -26,6 +30,177 @@ class BaseEngine:
 
     def pause_for_user(self, reason):
         self.app.pause_for_user(reason)
+
+    def should_stop(self):
+        should_stop = getattr(self.app, "should_stop", None)
+        return bool(callable(should_stop) and should_stop())
+
+    @property
+    def navigation_stopped(self):
+        return self._navigation_stopped
+
+    def goto_with_stop(self, page, url, wait_until="load", timeout=30000, **kwargs):
+        """Navigate once, then wait for the requested load state in interruptible slices."""
+        self._navigation_stopped = False
+        timeout_cap = getattr(self.app, "navigation_timeout_cap_ms", None)
+        if timeout_cap is not None:
+            timeout = min(timeout, timeout_cap)
+        deadline = time.monotonic() + timeout / 1000
+        initial_url = page.url or ""
+        navigation_response = [None]
+
+        def remember_navigation_response(response):
+            request = response.request
+            if request.is_navigation_request() and request.frame == page.main_frame:
+                navigation_response[0] = response
+
+        page.on("response", remember_navigation_response)
+
+        def stop_navigation():
+            self._navigation_stopped = True
+            self.log("用户停止，已中断页面导航")
+            return None
+
+        def remaining_timeout_ms():
+            return math.ceil((deadline - time.monotonic()) * 1000)
+
+        try:
+            if self.should_stop():
+                return stop_navigation()
+
+            if wait_until == "commit":
+                try:
+                    return page.goto(
+                        url, wait_until="commit", timeout=timeout, **kwargs
+                    )
+                except Exception:
+                    if self.should_stop():
+                        return stop_navigation()
+                    raise
+
+            response = None
+            try:
+                response = page.goto(
+                    url,
+                    wait_until="commit",
+                    timeout=min(250, timeout),
+                    **kwargs,
+                )
+            except PlaywrightTimeoutError:
+                if self.should_stop():
+                    return stop_navigation()
+            except Exception:
+                if self.should_stop():
+                    return stop_navigation()
+                raise
+
+            if response is None:
+                response = navigation_response[0]
+
+            if response is None and (page.url or "") == initial_url:
+                while True:
+                    if self.should_stop():
+                        return stop_navigation()
+                    remaining_ms = remaining_timeout_ms()
+                    if remaining_ms <= 0:
+                        raise PlaywrightTimeoutError(
+                            f"Navigation to {url} did not commit within {timeout}ms"
+                        )
+                    try:
+                        page.wait_for_url(
+                            lambda current_url: current_url != initial_url,
+                            timeout=min(250, remaining_ms),
+                        )
+                    except PlaywrightTimeoutError:
+                        if self.should_stop():
+                            return stop_navigation()
+                        if remaining_timeout_ms() <= 0:
+                            raise
+                    except Exception:
+                        if self.should_stop():
+                            return stop_navigation()
+                        raise
+
+            while True:
+                if self.should_stop():
+                    return stop_navigation()
+                remaining_ms = remaining_timeout_ms()
+                if remaining_ms <= 0:
+                    raise PlaywrightTimeoutError(
+                        f"Navigation to {url} did not reach {wait_until} within {timeout}ms"
+                    )
+                response = (
+                    response
+                    if response is not None
+                    else navigation_response[0]
+                )
+                if url != initial_url and (page.url or "") == initial_url:
+                    try:
+                        page.wait_for_url(
+                            lambda current_url: current_url != initial_url,
+                            timeout=min(250, remaining_ms),
+                        )
+                    except PlaywrightTimeoutError:
+                        if self.should_stop():
+                            return stop_navigation()
+                        if remaining_timeout_ms() <= 0:
+                            raise
+                    except Exception:
+                        if self.should_stop():
+                            return stop_navigation()
+                        raise
+                    continue
+                if url == initial_url and response is None:
+                    page.wait_for_timeout(min(250, remaining_ms))
+                    continue
+                try:
+                    page.wait_for_load_state(
+                        wait_until,
+                        timeout=min(250, remaining_ms),
+                    )
+                    return response
+                except PlaywrightTimeoutError:
+                    if self.should_stop():
+                        return stop_navigation()
+                    if remaining_timeout_ms() <= 0:
+                        raise
+                except Exception:
+                    if self.should_stop():
+                        return stop_navigation()
+                    raise
+        finally:
+            page.remove_listener("response", remember_navigation_response)
+
+    def wait_for_url_with_stop(self, page, url, timeout=30000):
+        """Wait for a URL in bounded slices so an explicit stop is observed promptly."""
+        self._navigation_stopped = False
+        deadline = time.monotonic() + timeout / 1000
+        while True:
+            if self.should_stop():
+                self._navigation_stopped = True
+                self.log("用户停止，已中断页面导航等待")
+                return
+            remaining_ms = math.ceil((deadline - time.monotonic()) * 1000)
+            if remaining_ms <= 0:
+                raise PlaywrightTimeoutError(
+                    f"URL did not match {url!r} within {timeout}ms"
+                )
+            try:
+                page.wait_for_url(url, timeout=min(250, remaining_ms))
+                return
+            except PlaywrightTimeoutError:
+                if self.should_stop():
+                    self._navigation_stopped = True
+                    self.log("用户停止，已中断页面导航等待")
+                    return
+                if time.monotonic() >= deadline:
+                    raise
+            except Exception:
+                if self.should_stop():
+                    self._navigation_stopped = True
+                    self.log("用户停止，已中断页面导航等待")
+                    return
+                raise
 
     @staticmethod
     def page_offset(page_num, per_page, page_base):
