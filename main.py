@@ -1,5 +1,5 @@
 """
-打盗全家捅 —— pywebview 版
+【一键自动搜盗】—— pywebview 版
 
 运行：
     python main.py
@@ -74,7 +74,7 @@ DEFAULT_SUFFIXES = [
     {"text": "免费", "enabled": True},
 ]
 
-APP_TITLE = "打盗全家捅"
+APP_TITLE = "【一键自动搜盗】"
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 800
 
@@ -226,7 +226,7 @@ def _save_stats():
             json.dump(_stats, f, ensure_ascii=False, indent=2)
         # 生成人看的 txt
         lines = [
-            "打盗全家捅 — 搜索统计",
+            "【一键自动搜盗】— 搜索统计",
             f"更新时间：{_stats['last_updated']}",
             "",
             f"总搜索轮数：{_stats['total_searches']}",
@@ -435,7 +435,7 @@ def windows_toast(title, msg, api=None):
     try:
         icon_path = os.path.join(RESOURCE_DIR, "app_icon.ico")
         kwargs = {
-            "app_id": "打盗全家捅",
+            "app_id": "【一键自动搜盗】",
             "title": title,
             "msg": msg,
             "duration": "short",

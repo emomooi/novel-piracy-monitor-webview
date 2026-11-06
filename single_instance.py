@@ -7,7 +7,7 @@
   （让它把窗口显示到最前面），自己马上退出，所以不会同时开两个。
 
 用法（pywebview 版，放在程序入口 __main__）：
-    guard = SingleInstance("打盗全家捅监控")
+    guard = SingleInstance("【一键自动搜盗】互斥锁")
     if not guard.acquire():
         guard.wake_existing()
         print("程序已在运行")

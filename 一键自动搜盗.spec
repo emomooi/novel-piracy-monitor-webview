@@ -1,11 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [
-    ('index.html', '.'),
-    ('css\\app.css', 'css'),
-    ('js\\app.js', 'js'),
-]
+datas = [('index.html', '.'), ('css', 'css')]
 binaries = []
 hiddenimports = []
 tmp_ret = collect_all('playwright')
@@ -34,7 +30,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='打盗全家捅',
+    name='一键自动搜盗',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -54,5 +50,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='打盗全家捅',
+    name='一键自动搜盗',
 )
