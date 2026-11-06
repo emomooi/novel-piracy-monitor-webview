@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('index.html', '.'), ('css', 'css')]
+datas = [('index.html', '.'), ('css', 'css'), ('js', 'js')]
 binaries = []
 hiddenimports = []
 tmp_ret = collect_all('playwright')
