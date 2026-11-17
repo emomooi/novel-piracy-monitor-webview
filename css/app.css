@@ -482,6 +482,25 @@
     background: #1E272E;
   }
 
+  /* 日志工具条按钮（深色底上用浅灰描边小按钮） */
+  .btn-log-copy {
+    height: 24px;
+    padding: 0 10px;
+    border: 1px solid #455A64;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: #AFC2C7;
+    font-family: inherit;
+    font-size: 12px;
+    white-space: nowrap;
+    flex: 0 0 auto;
+    cursor: pointer;
+  }
+  .btn-log-copy:hover {
+    border-color: #6B8A93;
+    color: #E8F0F2;
+  }
+
   .log-body {
     flex: 1 1 auto;
     min-height: 0;

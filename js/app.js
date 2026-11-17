@@ -1046,6 +1046,37 @@
   }
 
   /* ==================== 清 cookies ==================== */
+  /* 「复制日志」：把日志区所有行拼成文本写剪贴板 */
+  (function () {
+    var btn = document.getElementById('btnCopyLog');
+    if (!btn) { return; }
+    btn.addEventListener('click', function () {
+      var lines = Array.prototype.slice.call(logBody.querySelectorAll('.log-line'));
+      var text = lines.map(function (l) { return l.textContent || ''; }).join('\n');
+      if (!text) {
+        window.appendLog('日志为空');
+        return;
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+          window.appendLog('已复制日志 ' + lines.length + ' 行');
+        }, function () {
+          window.appendLog('[错误] 复制日志失败（剪贴板被拒绝）');
+        });
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); window.appendLog('已复制日志 ' + lines.length + ' 行'); }
+        catch (err) { window.appendLog('[错误] 复制日志失败'); }
+        document.body.removeChild(ta);
+      }
+    });
+  })();
+
   var btnClearCookies = document.getElementById('btnClearCookies');
   if (btnClearCookies) {
     btnClearCookies.addEventListener('click', function () {

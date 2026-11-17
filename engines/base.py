@@ -238,7 +238,23 @@ class BaseEngine:
         low = head.lower()
         if any(low.startswith(p) for p in BaseEngine.KEEP_QUERY_PREFIXES):
             return head
-        return head.split('?')[0]
+        # 智能体跳转真链：query 里全是会话参数（_chatQuery / searchid / _chatParams），必须保住，否则存链回没法重现对话
+        try:
+            host = (urlsplit(low).hostname or '')
+            if host.endswith('.smartapps.baidu.com'):
+                return head
+        except Exception:
+            pass
+        # 对齐插件 1.1.1 修复：内容 ID 常在 query 里（?id= / ?p= / ?chap= / ?kw=），
+        # 只有「跳转壳」（路径含 /link /jump）才是纯跟踪参数，需要剥掉；
+        # 其余真链一律保留完整 query，否则存链打不开。
+        try:
+            path = urlsplit(low).path or ''
+        except Exception:
+            path = ''
+        if ('/link' in path) or ('/jump' in path):
+            return head.split('?')[0]
+        return head
 
     @staticmethod
     def clean_content_url(url):

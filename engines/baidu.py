@@ -44,6 +44,7 @@ class BaiduEngine(BaseEngine):
                         if (!title) return;
 
                         // ★ 从 data-feedback 拿真实 URL（百度在结果卡片里嵌了 JSON）
+                        let agentJump = '';
                         let href = '';
                         const fbEl = block.querySelector('[data-feedback]');
                         if (fbEl) {
@@ -55,6 +56,17 @@ class BaiduEngine(BaseEngine):
                             }
                         }
                         if (!href || !href.startsWith('http')) return;
+                        const isAgentCard = block.querySelector('[tpl="ai_agent_distribute"]') !== null
+                                         || block.hasAttribute('mu');
+                        if (isAgentCard) {
+                            const jumpEl = block.querySelector('a[href*="baidu.com/link?url="]');
+                            if (jumpEl) {
+                                agentJump = jumpEl.getAttribute('href') || '';
+                                if (agentJump.startsWith('http://')) {
+                                    agentJump = 'https://' + agentJump.substring(7);
+                                }
+                            }
+                        }
                         const kws = ['智能分身', '实时回复', '文心智能体', 'AI生成', 'AI 生成'];
                         let isZhinengti = false;
                         for (const k of kws) { if (text.includes(k)) { isZhinengti = true; break; } }
@@ -93,7 +105,8 @@ class BaiduEngine(BaseEngine):
                             const domainMatch = text.match(/\b((?:[a-zA-Z0-9\-]+\.)+[a-zA-Z]{2,})\b/);
                             author = domainMatch ? domainMatch[1] : '盗版网站';
                         }
-                        results.push({ title, url: href, author, summary, isZhinengti });
+                        results.push({ title, url: href, author, summary, isZhinengti, agentJump,
+               mu: block.getAttribute('mu') || '' });
                     });
                     return results;
                 }
@@ -138,13 +151,64 @@ class BaiduEngine(BaseEngine):
                     ))
                     continue
 
+                if it.get('isZhinengti'):
+                    # ★ 智能体：不真开浏览器页面，用当前会话上下文直接跟一次跳转链拿真链
+                    #   （复用登录 cookies，等价于插件里的 fetch(..., { redirect:'follow', credentials:'include' })）
+                    agent_jump = (it.get('agentJump') or '').strip()
+                    if agent_jump.startswith('http://'):
+                        agent_jump = 'https://' + agent_jump[7:]
+
+                    real_url = ''
+                    if agent_jump:
+                        try:
+                            response = context.request.get(agent_jump, max_redirects=10, timeout=8000)
+                            final_url = str(response.url or '').strip()
+                            host = (urlparse(final_url).hostname or '').lower()
+                            if final_url and host.endswith('.smartapps.baidu.com'):
+                                real_url = final_url
+                            else:
+                                self.log(f"    ⚠ 智能体跳转目标不是 smartapps，放弃：{final_url[:120]}")
+                        except Exception as exc:
+                            log_suppressed_error("百度智能体跳转解析失败", exc)
+
+                    if not real_url:
+                        mu_fallback = str(it.get('mu') or '').strip()
+                        if mu_fallback.startswith('http'):
+                            self.note("智能体真链解析失败，用快照页兜底")
+                            real_url = mu_fallback
+                        else:
+                            self.log("    ⚠ 智能体跳转目标异常，跳过")
+                            continue
+                    it['real_url'] = real_url
+                    it['redirects'] = []
+                    date = '未知'
+                    mm = re.search(r'(\d{4}年\d{1,2}月\d{1,2}日)', it['summary'])
+                    if mm: date = mm.group(1)
+                    else:
+                        mm2 = re.search(r'(\d{4}-\d{1,2}-\d{1,2})', it['summary'])
+                        if mm2: date = mm2.group(1)
+                    it['date'] = date
+                    results.append(self.normalize_result(
+                        source=self.SOURCE_ID,
+                        title=it.get('title', ''),
+                        url=real_url,
+                        summary=it.get('summary', ''),
+                        date=date,
+                        author=it.get('author', '百度搜索'),
+                        content_url=real_url,
+                        long_url=real_url,
+                        is_zhinengti=True,
+                    ))
+                    continue
+
                 real_url = raw_url
                 it['real_url'] = real_url
                 it['redirects'] = []
 
-                low = (real_url or '').lower()
-                if any(d in low for d in BLOCKED_DOMAINS):
-                    continue
+                if not it.get('isZhinengti'):
+                    low = (real_url or '').lower()
+                    if any(d in low for d in BLOCKED_DOMAINS):
+                        continue
 
                 if not it.get('isZhinengti') and real_url and 'baidu.com/link?' not in real_url:
                     try:
